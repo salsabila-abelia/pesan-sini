@@ -104,17 +104,18 @@ export default function CashierDashboard() {
     }
   };
 
+  // FUNGSI TOLAK PESANAN (TOMBOLNYA SUDAH DIKEMBALIKAN DI BAWAH)
   const handleReject = async (e: React.MouseEvent, orderId: number) => {
     e.stopPropagation();
-    if (!window.confirm("Yakin ingin menolak pembayaran ini?")) return;
+    if (!window.confirm("Yakin ingin menolak pesanan ini?")) return;
     try {
       await axios.put(`${API_URL}/order/${orderId}/reject`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert("Pembayaran ditolak.");
+      alert("Pesanan berhasil ditolak / dibatalkan.");
       fetchOrders(); 
     } catch (error) {
-      alert("Gagal menolak pembayaran.");
+      alert("Gagal menolak pesanan.");
     }
   };
 
@@ -131,13 +132,10 @@ export default function CashierDashboard() {
     return order.paymentProof || order.proofImage || order.proof || order.payment_proof || order.receipt || null;
   };
 
-  // --- PERBAIKAN LOGIKA CETAK STRUK ---
   const handlePrint = (e: React.MouseEvent, order: Order) => {
     e.stopPropagation();
     const printWindow = window.open('', '_blank', 'width=400,height=600');
     if (printWindow) {
-      
-      // Susun list pesanan menjadi HTML (Looping)
       const itemsHtml = order.orderItems && order.orderItems.length > 0 
         ? order.orderItems.map(item => `
             <div class="row">
@@ -292,6 +290,10 @@ export default function CashierDashboard() {
                   <div className="flex items-center gap-2 pt-3 border-t sm:border-0 border-slate-100 w-full sm:w-auto">
                     {order.paymentStatus === "PENDING" || order.paymentStatus === "WAITING_CONFIRMATION" ? (
                       <>
+                        {/* TOMBOL TOLAK DIKEMBALIKAN DI SINI */}
+                        <button onClick={(e) => handleReject(e, order.id)} className="bg-red-50 text-red-600 border border-red-100 px-5 py-2 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all flex-1 sm:flex-none active:scale-95 shadow-sm">
+                          Tolak
+                        </button>
                         <button onClick={(e) => handleVerify(e, order.id)} className="bg-slate-900 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600 transition-all flex-1 sm:flex-none active:scale-95 shadow-sm">
                           Terima
                         </button>

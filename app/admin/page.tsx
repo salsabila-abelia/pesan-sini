@@ -63,7 +63,7 @@ export default function AdminDashboard() {
     }
   }, [token]);
 
-  // --- MENGGUNAKAN CACHE BUSTER AGAR DATA SELALU BARU ---
+  // --- DITAMBAHKAN CACHE BUSTER AGAR MEJA SELALU UPDATE ---
   const fetchTables = async () => {
     try {
       const response = await axios.get(`${API_URL}/table`, { 
@@ -91,6 +91,7 @@ export default function AdminDashboard() {
     } catch (error) { alert("Gagal menghapus meja."); }
   };
 
+  // --- DITAMBAHKAN CACHE BUSTER AGAR KATEGORI SELALU UPDATE ---
   const fetchCategories = async () => {
     try {
       const response = await axios.get(`${API_URL}/category`, { 
@@ -118,6 +119,7 @@ export default function AdminDashboard() {
     } catch (error) { alert("Gagal menghapus kategori."); }
   };
 
+  // --- DITAMBAHKAN CACHE BUSTER AGAR MENU SELALU UPDATE BILA DIGANTI ---
   const fetchMenus = async () => {
     try {
       const response = await axios.get(`${API_URL}/menu`, { 
@@ -137,21 +139,38 @@ export default function AdminDashboard() {
     
     setIsSubmittingMenu(true);
     try {
-      const formData = new FormData();
-      formData.append("name", newMenuName);
-      formData.append("price", newMenuPrice);
-      formData.append("categoryId", newMenuCategoryId);
-      
-      if (newMenuImage) {
-        formData.append("image", newMenuImage); 
-      }
-
       if (editingMenuId) {
-        await axios.patch(`${API_URL}/menu/${editingMenuId}`, formData, { 
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
-        });
+        // JALUR 1: UPDATE
+        if (newMenuImage) {
+          const formData = new FormData();
+          formData.append("name", newMenuName);
+          formData.append("price", newMenuPrice);
+          formData.append("categoryId", newMenuCategoryId);
+          formData.append("image", newMenuImage); 
+          
+          await axios.patch(`${API_URL}/menu/${editingMenuId}`, formData, { 
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
+          });
+        } else {
+          // WAJIB MENGIRIM JSON DAN NUMBER AGAR DITERIMA DATABASE JIKA TANPA GAMBAR BARU
+          const jsonData = {
+            name: newMenuName,
+            price: Number(newMenuPrice),
+            categoryId: Number(newMenuCategoryId)
+          };
+          await axios.patch(`${API_URL}/menu/${editingMenuId}`, jsonData, { 
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } 
+          });
+        }
         alert("Menu berhasil diperbarui!");
       } else {
+        // JALUR 2: TAMBAH BARU
+        const formData = new FormData();
+        formData.append("name", newMenuName);
+        formData.append("price", newMenuPrice);
+        formData.append("categoryId", newMenuCategoryId);
+        formData.append("image", newMenuImage as File); 
+
         await axios.post(`${API_URL}/menu`, formData, { 
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
         });
@@ -161,8 +180,8 @@ export default function AdminDashboard() {
       resetMenuForm();
       fetchMenus(); 
     } catch (error: any) { 
-      console.error("Detail Error Backend:", error.response?.data || error.message);
-      alert(editingMenuId ? "Gagal memperbarui menu. Cek console untuk detail." : "Gagal menambah menu."); 
+      console.error("Detail Error:", error.response?.data || error.message);
+      alert(editingMenuId ? "Gagal memperbarui menu. Cek kembali form kamu." : "Gagal menambah menu. Pastikan harga berupa angka."); 
     } finally { 
       setIsSubmittingMenu(false); 
     }

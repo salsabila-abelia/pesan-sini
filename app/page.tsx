@@ -28,6 +28,9 @@ export default function CustomerPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState("Semua");
+
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [tableId, setTableId] = useState("");
@@ -123,12 +126,44 @@ export default function CustomerPage() {
     }
   };
 
+  const uniqueCategories = ["Semua", ...Array.from(new Set(menus.map((m) => m.category?.name).filter(Boolean)))];
+
+  // --- LOGIKA PENGURUTAN MENU (PENGELOMPOKAN KATEGORI) ---
+  // Tentukan urutan prioritas kategori di sini
+  const categoryPriority = ["Makanan", "Minuman", "Snack", "Dessert"];
+
+  const filteredMenus = menus
+    .filter((menu) => {
+      const matchSearch = menu.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchCategory = activeCategory === "Semua" || menu.category?.name === activeCategory;
+      return matchSearch && matchCategory;
+    })
+    .sort((a, b) => {
+      const catA = a.category?.name || "";
+      const catB = b.category?.name || "";
+      
+      let indexA = categoryPriority.indexOf(catA);
+      let indexB = categoryPriority.indexOf(catB);
+      
+      // Jika ada kategori lain di luar prioritas, taruh di paling bawah (angka 99)
+      if (indexA === -1) indexA = 99;
+      if (indexB === -1) indexB = 99;
+      
+      // Mengurutkan berdasarkan kelompok kategori
+      if (indexA !== indexB) {
+        return indexA - indexB;
+      }
+      
+      // Jika kategorinya sama, urutkan sesuai abjad nama menu (A-Z)
+      return a.name.localeCompare(b.name);
+    });
+
   return (
     <div className="flex min-h-screen bg-[#F4F5F7] font-sans text-slate-900 selection:bg-emerald-200">
       
-      <main className="flex-1 p-5 md:p-8 pb-32 lg:pb-10 max-w-[1440px] mx-auto w-full">
+      <main className="flex-1 p-4 md:p-8 pb-32 lg:pb-10 max-w-[1440px] mx-auto w-full">
         
-        <header className="mb-8 lg:mb-12 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <header className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
               Pesan<span className="text-emerald-600">Sini.</span>
@@ -143,15 +178,82 @@ export default function CustomerPage() {
           </div>
         </header>
 
+        {/* --- HERO BANNER --- */}
+        <div className="w-full bg-slate-900 rounded-[2rem] p-6 md:p-10 mb-8 relative overflow-hidden flex flex-col justify-center shadow-lg shadow-slate-900/10">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-indigo-500/20 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4"></div>
+          
+          <div className="relative z-10 w-full md:w-2/3">
+            <span className="inline-block bg-white/10 backdrop-blur-sm text-emerald-300 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-widest mb-4 border border-white/10">
+              Promo Spesial Hari Ini
+            </span>
+            <h2 className="text-2xl md:text-4xl font-black text-white leading-tight mb-3">
+              Nikmati Hidangan Terbaik Tanpa Antri.
+            </h2>
+            <p className="text-slate-300 font-medium text-sm md:text-base mb-0">
+              Pesan langsung dari meja Anda, bayar pakai QRIS, dan biarkan kami yang menyajikannya.
+            </p>
+          </div>
+        </div>
+
+        {/* --- SEARCH BAR & FILTER CATEGORY --- */}
+        <div className="mb-8 space-y-4">
+          <div className="relative w-full max-w-2xl">
+            <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
+              <svg focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5 text-slate-400">
+                <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"></path>
+              </svg>
+            </div>
+            
+            <input 
+              type="text" 
+              placeholder="Search menu yang anda inginkan" 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-14 pr-24 py-3.5 bg-white border border-slate-200 hover:shadow-md focus:shadow-md rounded-full text-[15px] font-normal text-slate-700 placeholder:text-slate-500 focus:outline-none transition-shadow"
+            />
+
+            <div className="absolute inset-y-0 right-5 flex items-center gap-4">
+              <svg focusable="false" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 cursor-pointer hover:scale-110 transition-transform"><path fill="#4285f4" d="m12 15c1.66 0 3-1.31 3-2.97v-7.02c0-1.66-1.34-3.01-3-3.01s-3 1.34-3 3.01v7.02c0 1.66 1.34 2.97 3 2.97z"></path><path fill="#34a853" d="m11 18.08h2v3.92h-2z"></path><path fill="#fbbc05" d="m7.05 16.87c-1.27-1.33-2.05-2.8-2.05-4.87h2c0 1.45 0.56 2.42 1.47 3.38v0.32l-1.15 1.18z"></path><path fill="#ea4335" d="m12 16.93a4.97 5.25 0 0 1 -3.54 -1.55l-1.41 1.49c1.26 1.34 3.02 2.13 4.95 2.13 3.87 0 6.99-2.92 6.99-7h-1.99c0 2.92-2.24 4.93-5 4.93z"></path></svg>
+              <svg focusable="false" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" className="w-[22px] h-[22px] cursor-pointer hover:scale-110 transition-transform"><rect fill="none" height="192" width="192"></rect><g><circle fill="#34a853" cx="144.07" cy="144" r="16"></circle><circle fill="#4285f4" cx="96.07" cy="104" r="24"></circle><path fill="#ea4335" d="M24,135.2c0,18.11,14.69,32.8,32.8,32.8H96v-16l-40.1-0.1c-8.8,0-15.9-8.19-15.9-17.9v-18H24V135.2z"></path><path fill="#fbbc05" d="M168,74.8c0-18.11-14.69-32.8-32.8-32.8H96v16l40.1,0.1c8.8,0,15.9,8.19,15.9,17.9v18h16V74.8z"></path><path fill="#4285f4" d="M24,74.8c0-18.11,14.69-32.8,32.8-32.8H96v16l-40.1,0.1c-8.8,0-15.9,8.19-15.9,17.9v18H24V74.8z"></path></g></svg>
+            </div>
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
+            {uniqueCategories.map((cat, idx) => (
+              <button 
+                key={idx}
+                onClick={() => setActiveCategory(cat as string)}
+                className={`snap-start whitespace-nowrap px-5 py-2.5 rounded-full font-bold text-sm transition-all shadow-sm ${
+                  activeCategory === cat 
+                    ? "bg-slate-900 text-white" 
+                    : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+
          {isLoading ? (
            <div className="flex flex-col justify-center items-center h-64 space-y-4">
               <div className="w-10 h-10 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin"></div>
               <span className="text-slate-500 font-medium text-sm">Menyiapkan hidangan...</span>
            </div>
+         ) : filteredMenus.length === 0 ? (
+           <div className="flex flex-col justify-center items-center h-64 bg-white rounded-[2rem] border border-slate-100 shadow-sm">
+             <span className="text-5xl opacity-50 mb-4">🍽️</span>
+             <p className="text-slate-500 font-medium text-center">Menu tidak ditemukan.<br/>Coba kata kunci lain.</p>
+           </div>
          ) : (
-           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 md:gap-6">
-              {menus.map((menu) => (
-                <div key={menu.id} className="group bg-white p-4 rounded-[1.5rem] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-slate-100 flex flex-col transition-all duration-300">
+           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+              {filteredMenus.map((menu) => {
+                const randomRating = (Math.random() * (5.0 - 4.5) + 4.5).toFixed(1);
+                const randomSold = Math.floor(Math.random() * 200) + 50;
+
+                return (
+                <div key={menu.id} className="group bg-white p-3 md:p-4 rounded-[1.5rem] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-slate-100 flex flex-col transition-all duration-300">
                   <div className="w-full aspect-[4/3] bg-slate-50 rounded-xl mb-4 overflow-hidden relative">
                     {menu.image ? (
                       <img src={`${API_URL}/${menu.image}`} alt={menu.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -163,18 +265,26 @@ export default function CustomerPage() {
                     </div>
                   </div>
                   <div className="flex-1 flex flex-col">
-                    <h3 className="font-bold text-slate-900 text-sm md:text-base leading-snug mb-1.5 line-clamp-2">{menu.name}</h3>
-                    <p className="text-sm md:text-base font-black text-emerald-600 mb-5">{formatRupiah(menu.price)}</p>
-                    <button onClick={() => addToCart(menu)} className="mt-auto w-full bg-slate-900 hover:bg-emerald-600 text-white py-3 rounded-xl text-sm font-bold transition-all duration-300 active:scale-95 shadow-md hover:shadow-emerald-600/20 flex items-center justify-center gap-2">
+                    
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <span className="text-amber-400 text-xs">⭐</span>
+                      <span className="text-xs font-bold text-slate-700">{randomRating}</span>
+                      <span className="text-[10px] font-medium text-slate-400">({randomSold}+ terjual)</span>
+                    </div>
+
+                    <h3 className="font-bold text-slate-900 text-sm md:text-base leading-snug mb-1 line-clamp-2">{menu.name}</h3>
+                    <p className="text-sm md:text-base font-black text-emerald-600 mb-5 mt-auto">{formatRupiah(menu.price)}</p>
+                    <button onClick={() => addToCart(menu)} className="w-full bg-slate-900 hover:bg-emerald-600 text-white py-2.5 md:py-3 rounded-xl text-sm font-bold transition-all duration-300 active:scale-95 shadow-md hover:shadow-emerald-600/20 flex items-center justify-center gap-2">
                       Tambah
                     </button>
                   </div>
                 </div>
-              ))}
+              )})}
            </div>
          )}
       </main>
 
+      {/* --- SIDEBAR KERANJANG --- */}
       {isCartOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden transition-opacity" onClick={() => setIsCartOpen(false)} />}
       
       <aside className={`fixed top-0 right-0 h-full w-[85vw] max-w-sm bg-white shadow-[-10px_0_30px_rgba(0,0,0,0.05)] z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] lg:sticky lg:translate-x-0 lg:w-96 lg:border-l lg:border-slate-100 lg:shadow-none flex flex-col ${isCartOpen ? "translate-x-0" : "translate-x-full"}`}>
@@ -269,7 +379,6 @@ export default function CustomerPage() {
                 />
               </div>
 
-              {/* PERUBAHAN DI SINI: Ikon dropdown sudah ditambahkan */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Metode Pembayaran</label>
                 <div className="relative">
@@ -305,6 +414,13 @@ export default function CustomerPage() {
         @keyframes slideUp {
           from { transform: translateY(100%); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
         }
       `}} />
 

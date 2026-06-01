@@ -23,6 +23,9 @@ export default function AdminDashboard() {
   const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
 
   const [menus, setMenus] = useState<Menu[]>([]);
+  
+  // STATE MENU SEKARANG DIGUNAKAN UNTUK TAMBAH & UPDATE
+  const [editingMenuId, setEditingMenuId] = useState<number | null>(null);
   const [newMenuName, setNewMenuName] = useState("");
   const [newMenuPrice, setNewMenuPrice] = useState("");
   const [newMenuCategoryId, setNewMenuCategoryId] = useState("");
@@ -121,9 +124,14 @@ export default function AdminDashboard() {
     } catch (error) { console.error(error); }
   };
 
-  const handleAddMenu = async (e: React.FormEvent) => {
+  // FUNGSI GABUNGAN: TAMBAH & UPDATE
+  const handleSubmitMenu = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMenuImage) return alert("Gambar menu wajib diisi!");
+    
+    // Validasi: Kalau mode tambah, gambar wajib. Kalau update, gambar opsional.
+    if (!editingMenuId && !newMenuImage) {
+      return alert("Gambar menu wajib diisi untuk menu baru!");
+    }
     
     setIsSubmittingMenu(true);
     try {
@@ -131,17 +139,57 @@ export default function AdminDashboard() {
       formData.append("name", newMenuName);
       formData.append("price", newMenuPrice);
       formData.append("categoryId", newMenuCategoryId);
-      formData.append("image", newMenuImage); 
+      if (newMenuImage) {
+        formData.append("image", newMenuImage); 
+      }
 
-      await axios.post(`${API_URL}/menu`, formData, { 
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
-      });
+      if (editingMenuId) {
+        // MODE UPDATE (PATCH)
+        await axios.patch(`${API_URL}/menu/${editingMenuId}`, formData, { 
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
+        });
+        alert("Menu berhasil diperbarui!");
+      } else {
+        // MODE TAMBAH (POST)
+        await axios.post(`${API_URL}/menu`, formData, { 
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
+        });
+        alert("Menu berhasil ditambahkan!");
+      }
       
-      setNewMenuName(""); setNewMenuPrice(""); setNewMenuCategoryId(""); setNewMenuImage(null);
-      const fileInput = document.getElementById('image-upload') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
-      fetchMenus(); alert("Menu berhasil ditambahkan!");
-    } catch (error: any) { alert("Gagal menambah menu."); } finally { setIsSubmittingMenu(false); }
+      resetMenuForm();
+      fetchMenus(); 
+    } catch (error: any) { 
+      alert(editingMenuId ? "Gagal memperbarui menu." : "Gagal menambah menu."); 
+    } finally { 
+      setIsSubmittingMenu(false); 
+    }
+  };
+
+  // MENGISI FORM DENGAN DATA YANG MAU DIEDIT
+  const handleEditClick = (menu: Menu) => {
+    setEditingMenuId(menu.id);
+    setNewMenuName(menu.name);
+    setNewMenuPrice(menu.price.toString());
+    setNewMenuCategoryId(menu.categoryId.toString());
+    setNewMenuImage(null); // Reset gambar, biarkan kosong kalau tidak mau diganti
+    
+    const fileInput = document.getElementById('image-upload') as HTMLInputElement;
+    if (fileInput) fileInput.value = '';
+
+    // Otomatis scroll ke atas (ke arah form)
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // MEMBATALKAN MODE EDIT
+  const resetMenuForm = () => {
+    setEditingMenuId(null);
+    setNewMenuName(""); 
+    setNewMenuPrice(""); 
+    setNewMenuCategoryId(""); 
+    setNewMenuImage(null);
+    const fileInput = document.getElementById('image-upload') as HTMLInputElement;
+    if (fileInput) fileInput.value = '';
   };
 
   const handleDeleteMenu = async (id: number) => {
@@ -335,12 +383,21 @@ export default function AdminDashboard() {
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
               
-              {/* Form Tambah Menu */}
+              {/* Form Tambah / Update Menu */}
               <div className="xl:col-span-1">
-                <div className="bg-white p-8 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
-                  <h3 className="font-extrabold text-lg mb-6 text-slate-900">Tambah Menu Baru</h3>
-                  <form onSubmit={handleAddMenu} className="space-y-5">
-                    
+                <div className={`p-8 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border transition-colors ${editingMenuId ? 'bg-amber-50/30 border-amber-200' : 'bg-white border-slate-100'}`}>
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="font-extrabold text-lg text-slate-900">
+                      {editingMenuId ? "Update Menu" : "Tambah Menu Baru"}
+                    </h3>
+                    {editingMenuId && (
+                      <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider">
+                        Mode Edit
+                      </span>
+                    )}
+                  </div>
+
+                  <form onSubmit={handleSubmitMenu} className="space-y-5">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Nama Menu</label>
                       <input 
@@ -359,7 +416,6 @@ export default function AdminDashboard() {
                       />
                     </div>
                     
-                    {/* DROPDOWN KATEGORI DENGAN IKON PANAH */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Kategori</label>
                       <div className="relative">
@@ -377,17 +433,26 @@ export default function AdminDashboard() {
                     </div>
                     
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Gambar Menu</label>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                        Gambar Menu {editingMenuId && <span className="text-amber-600 lowercase font-medium">(Opsional jika tidak diganti)</span>}
+                      </label>
                       <input 
-                        id="image-upload" type="file" required accept="image/*" 
+                        id="image-upload" type="file" required={!editingMenuId} accept="image/*" 
                         onChange={(e) => setNewMenuImage(e.target.files ? e.target.files[0] : null)} 
                         className="w-full text-sm font-medium text-slate-500 file:mr-4 file:py-3 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:uppercase file:tracking-wider file:bg-slate-900 file:text-white hover:file:bg-emerald-600 file:cursor-pointer file:transition-colors bg-slate-50 border-2 border-slate-100 rounded-xl p-1.5 cursor-pointer" 
                       />
                     </div>
                     
-                    <button type="submit" disabled={isSubmittingMenu} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-sm hover:bg-emerald-600 disabled:bg-slate-300 disabled:text-slate-500 transition-all shadow-md active:scale-95 mt-4">
-                      {isSubmittingMenu ? "Mengupload..." : "Simpan Menu"}
-                    </button>
+                    <div className="pt-2 flex gap-3">
+                      {editingMenuId && (
+                        <button type="button" onClick={resetMenuForm} className="flex-1 bg-white border-2 border-slate-200 text-slate-600 py-4 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all shadow-sm active:scale-95">
+                          Batal
+                        </button>
+                      )}
+                      <button type="submit" disabled={isSubmittingMenu} className={`flex-1 text-white py-4 rounded-xl font-bold text-sm disabled:bg-slate-300 disabled:text-slate-500 transition-all shadow-md active:scale-95 ${editingMenuId ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-900 hover:bg-emerald-600'}`}>
+                        {isSubmittingMenu ? "Menyimpan..." : (editingMenuId ? "Simpan Perubahan" : "Simpan Menu")}
+                      </button>
+                    </div>
                   </form>
                 </div>
               </div>
@@ -418,17 +483,28 @@ export default function AdminDashboard() {
                             </div>
                           </div>
                           
-                          {/* Info & Tombol Hapus */}
+                          {/* Info & Tombol Aksi */}
                           <div className="p-5 flex flex-col flex-1">
                             <h4 className="font-bold text-slate-900 text-base leading-snug mb-1">{menu.name}</h4>
                             <p className="font-black text-emerald-600 text-sm mb-5">{formatRupiah(menu.price)}</p>
                             
-                            <button 
-                              onClick={() => handleDeleteMenu(menu.id)} 
-                              className="mt-auto w-full text-red-500 hover:text-white bg-red-50 hover:bg-red-500 py-2.5 rounded-xl text-sm font-bold transition-colors active:scale-95"
-                            >
-                              Hapus Menu
-                            </button>
+                            <div className="mt-auto flex gap-2">
+                              {/* Tombol Edit */}
+                              <button 
+                                onClick={() => handleEditClick(menu)} 
+                                className="flex-1 text-amber-600 hover:text-white bg-amber-50 hover:bg-amber-500 py-2.5 rounded-xl text-sm font-bold transition-colors active:scale-95"
+                              >
+                                Edit
+                              </button>
+
+                              {/* Tombol Hapus */}
+                              <button 
+                                onClick={() => handleDeleteMenu(menu.id)} 
+                                className="flex-1 text-red-500 hover:text-white bg-red-50 hover:bg-red-500 py-2.5 rounded-xl text-sm font-bold transition-colors active:scale-95"
+                              >
+                                Hapus
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}

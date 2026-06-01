@@ -118,7 +118,7 @@ export default function AdminDashboard() {
     } catch (error) { console.error(error); }
   };
 
-  // --- LOGIKA UPDATE/TAMBAH MENU YANG SUDAH DIPERBAIKI ---
+  // --- SOLUSI FINAL UNTUK MENGATASI ERROR 500 PADA NESTJS / RAILWAY ---
   const handleSubmitMenu = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -128,38 +128,25 @@ export default function AdminDashboard() {
     
     setIsSubmittingMenu(true);
     try {
+      // BIKIN SATU FORMDATA UTAMA AGAR BACKEND SELALU MENERIMA 'MULTIPART' SEPERTI YANG DIA MINTA
+      const formData = new FormData();
+      formData.append("name", newMenuName);
+      formData.append("price", newMenuPrice);
+      formData.append("categoryId", newMenuCategoryId);
+      
+      // HANYA LAMPIRKAN GAMBAR JIKA ADMIN MEMILIH GAMBAR BARU
+      if (newMenuImage) {
+        formData.append("image", newMenuImage); 
+      }
+
       if (editingMenuId) {
-        // JALUR 1: UPDATE
-        if (newMenuImage) {
-          const formData = new FormData();
-          formData.append("name", newMenuName);
-          formData.append("price", newMenuPrice);
-          formData.append("categoryId", newMenuCategoryId);
-          formData.append("image", newMenuImage); 
-          
-          await axios.patch(`${API_URL}/menu/${editingMenuId}`, formData, { 
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
-          });
-        } else {
-          // WAJIB MENGIRIM JSON DAN NUMBER AGAR DITERIMA DATABASE JIKA TANPA GAMBAR BARU
-          const jsonData = {
-            name: newMenuName,
-            price: Number(newMenuPrice),
-            categoryId: Number(newMenuCategoryId)
-          };
-          await axios.patch(`${API_URL}/menu/${editingMenuId}`, jsonData, { 
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } 
-          });
-        }
+        // --- MODE UPDATE (PATCH) ---
+        await axios.patch(`${API_URL}/menu/${editingMenuId}`, formData, { 
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
+        });
         alert("Menu berhasil diperbarui!");
       } else {
-        // JALUR 2: TAMBAH BARU
-        const formData = new FormData();
-        formData.append("name", newMenuName);
-        formData.append("price", newMenuPrice);
-        formData.append("categoryId", newMenuCategoryId);
-        formData.append("image", newMenuImage as File); 
-
+        // --- MODE TAMBAH BARU (POST) ---
         await axios.post(`${API_URL}/menu`, formData, { 
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
         });
@@ -169,8 +156,8 @@ export default function AdminDashboard() {
       resetMenuForm();
       fetchMenus(); 
     } catch (error: any) { 
-      console.error("Detail Error:", error.response?.data || error.message);
-      alert(editingMenuId ? "Gagal memperbarui menu. Cek kembali form kamu." : "Gagal menambah menu. Pastikan harga berupa angka."); 
+      console.error("Detail Error Backend:", error.response?.data || error.message);
+      alert(editingMenuId ? "Gagal memperbarui menu. Cek console untuk detail." : "Gagal menambah menu."); 
     } finally { 
       setIsSubmittingMenu(false); 
     }

@@ -63,9 +63,13 @@ export default function AdminDashboard() {
     }
   }, [token]);
 
+  // --- MENGGUNAKAN CACHE BUSTER AGAR DATA SELALU BARU ---
   const fetchTables = async () => {
     try {
-      const response = await axios.get(`${API_URL}/table`, { headers: { Authorization: `Bearer ${token}` } });
+      const response = await axios.get(`${API_URL}/table`, { 
+        headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0' },
+        params: { t: new Date().getTime() } 
+      });
       setTables(response.data.data || response.data);
     } catch (error) { console.error(error); } finally { setIsLoading(false); }
   };
@@ -89,7 +93,10 @@ export default function AdminDashboard() {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get(`${API_URL}/category`, { headers: { Authorization: `Bearer ${token}` } });
+      const response = await axios.get(`${API_URL}/category`, { 
+        headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0' },
+        params: { t: new Date().getTime() } 
+      });
       setCategories(response.data.data || response.data);
     } catch (error) { console.error(error); }
   };
@@ -113,12 +120,14 @@ export default function AdminDashboard() {
 
   const fetchMenus = async () => {
     try {
-      const response = await axios.get(`${API_URL}/menu`, { headers: { Authorization: `Bearer ${token}` } });
+      const response = await axios.get(`${API_URL}/menu`, { 
+        headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0' },
+        params: { t: new Date().getTime() } 
+      });
       setMenus(response.data.data || response.data);
     } catch (error) { console.error(error); }
   };
 
-  // --- SOLUSI FINAL UNTUK MENGATASI ERROR 500 PADA NESTJS / RAILWAY ---
   const handleSubmitMenu = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -128,25 +137,21 @@ export default function AdminDashboard() {
     
     setIsSubmittingMenu(true);
     try {
-      // BIKIN SATU FORMDATA UTAMA AGAR BACKEND SELALU MENERIMA 'MULTIPART' SEPERTI YANG DIA MINTA
       const formData = new FormData();
       formData.append("name", newMenuName);
       formData.append("price", newMenuPrice);
       formData.append("categoryId", newMenuCategoryId);
       
-      // HANYA LAMPIRKAN GAMBAR JIKA ADMIN MEMILIH GAMBAR BARU
       if (newMenuImage) {
         formData.append("image", newMenuImage); 
       }
 
       if (editingMenuId) {
-        // --- MODE UPDATE (PATCH) ---
         await axios.patch(`${API_URL}/menu/${editingMenuId}`, formData, { 
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
         });
         alert("Menu berhasil diperbarui!");
       } else {
-        // --- MODE TAMBAH BARU (POST) ---
         await axios.post(`${API_URL}/menu`, formData, { 
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
         });

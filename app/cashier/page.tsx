@@ -4,6 +4,16 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 
+// Menambahkan interface OrderItem untuk membaca detail menu
+interface OrderItem {
+  id: number;
+  quantity: number;
+  menu: {
+    name: string;
+    price: number;
+  };
+}
+
 interface Order {
   id: number;
   customerName: string;
@@ -14,6 +24,7 @@ interface Order {
   proofImage?: string;   
   paymentProof?: string;
   proof?: string;
+  orderItems?: OrderItem[]; 
 }
 
 export default function CashierDashboard() {
@@ -22,15 +33,18 @@ export default function CashierDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [token, setToken] = useState("");
   
-  const [activeFilter, setActiveFilter] = useState<"ALL" | "QRIS" | "CASH">("ALL");
+  const [activeFilter, setActiveFilter] = useState<"ALL" | "QRIS" | "CASH" | "CANCELLED">("ALL");
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-  // SATPAM PROTEKSI HALAMAN
+  const today = new Date().toLocaleDateString("id-ID", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric"
+  });
+
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
     const storedRole = localStorage.getItem("role");
-
     const isValidToken = storedToken && storedToken !== "undefined" && storedToken !== "null";
 
     if (!isValidToken) {
@@ -52,6 +66,8 @@ export default function CashierDashboard() {
   useEffect(() => {
     if (token) {
       fetchOrders();
+      const intervalId = setInterval(fetchOrders, 10000); 
+      return () => clearInterval(intervalId);
     }
   }, [token]);
 
@@ -63,17 +79,20 @@ export default function CashierDashboard() {
       const orderData = response.data.data || response.data;
       const sortedOrders = orderData.sort((a: any, b: any) => b.id - a.id);
       setOrders(sortedOrders);
+      
+      if (selectedOrder) {
+        const updatedSelected = sortedOrders.find((o: Order) => o.id === selectedOrder.id);
+        if (updatedSelected) setSelectedOrder(updatedSelected);
+      }
     } catch (error) {
       console.error("Gagal mengambil data pesanan:", error);
-      alert("Sesi kamu mungkin sudah habis. Silakan login kembali.");
-      localStorage.clear();
-      router.replace("/login");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleVerify = async (orderId: number) => {
+  const handleVerify = async (e: React.MouseEvent, orderId: number) => {
+    e.stopPropagation(); 
     try {
       await axios.put(`${API_URL}/order/${orderId}/verify`, {}, {
         headers: { Authorization: `Bearer ${token}` }
@@ -85,7 +104,8 @@ export default function CashierDashboard() {
     }
   };
 
-  const handleReject = async (orderId: number) => {
+  const handleReject = async (e: React.MouseEvent, orderId: number) => {
+    e.stopPropagation();
     if (!window.confirm("Yakin ingin menolak pembayaran ini?")) return;
     try {
       await axios.put(`${API_URL}/order/${orderId}/reject`, {}, {
@@ -111,9 +131,22 @@ export default function CashierDashboard() {
     return order.paymentProof || order.proofImage || order.proof || order.payment_proof || order.receipt || null;
   };
 
-  const handlePrint = (order: Order) => {
+  // --- PERBAIKAN LOGIKA CETAK STRUK ---
+  const handlePrint = (e: React.MouseEvent, order: Order) => {
+    e.stopPropagation();
     const printWindow = window.open('', '_blank', 'width=400,height=600');
     if (printWindow) {
+      
+      // Susun list pesanan menjadi HTML (Looping)
+      const itemsHtml = order.orderItems && order.orderItems.length > 0 
+        ? order.orderItems.map(item => `
+            <div class="row">
+              <span>${item.quantity}x ${item.menu?.name || 'Menu'}</span>
+              <span>${formatRupiah((item.menu?.price || 0) * item.quantity)}</span>
+            </div>
+          `).join('')
+        : '<div class="row" style="text-align: center; color: #666;"><i>(Detail menu tidak tersedia)</i></div>';
+
       printWindow.document.write(`
         <html>
           <head>
@@ -139,7 +172,11 @@ export default function CashierDashboard() {
             <div class="row"><span>Pelanggan:</span><span>${order.customerName}</span></div>
             <div class="row"><span>Meja:</span><span>${order.tableNumber}</span></div>
             <div class="row"><span>Metode:</span><span>${order.paymentMethod}</span></div>
-            <div class="row"><span>Status:</span><span>${order.paymentStatus}</span></div>
+            
+            <div class="divider"></div>
+            
+            <div style="font-weight: bold; margin-bottom: 8px;">PESANAN:</div>
+            ${itemsHtml}
             
             <div class="divider"></div>
             
@@ -164,8 +201,9 @@ export default function CashierDashboard() {
   };
 
   const filteredOrders = orders.filter((order) => {
-    if (activeFilter === "ALL") return true;
-    return order.paymentMethod === activeFilter;
+    if (activeFilter === "ALL") return order.paymentStatus !== "CANCELLED";
+    if (activeFilter === "CANCELLED") return order.paymentStatus === "CANCELLED";
+    return order.paymentMethod === activeFilter && order.paymentStatus !== "CANCELLED";
   });
 
   if (isLoading) {
@@ -179,156 +217,172 @@ export default function CashierDashboard() {
 
   return (
     <div className="min-h-screen bg-[#F4F5F7] font-sans text-slate-900 selection:bg-emerald-200">
-      
-      <main className="p-5 md:p-8 lg:p-12 max-w-[1440px] mx-auto w-full">
-        
-        <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 mb-1.5">
-              Ruang<span className="text-emerald-600">Kasir.</span>
-            </h1>
-            <p className="text-slate-500 font-medium text-sm md:text-base">
-              Kelola pesanan masuk dan verifikasi pembayaran.
-            </p>
-          </div>
-          
-          <button 
-            onClick={handleLogout} 
-            className="w-full md:w-auto bg-white hover:bg-red-500 text-red-500 hover:text-white border border-red-100 px-6 py-3 rounded-xl font-bold transition-all shadow-sm flex items-center justify-center gap-2 group active:scale-95"
-          >
-            <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-            Keluar Sistem
-          </button>
-        </header>
-
-        <div className="flex flex-wrap items-center gap-2 mb-8 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm w-max">
-          <button 
-            onClick={() => setActiveFilter("ALL")}
-            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
-              activeFilter === "ALL" 
-                ? "bg-slate-900 text-white shadow-md" 
-                : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-          >
-            Semua Pesanan
-          </button>
-          
-          <button 
-            onClick={() => setActiveFilter("QRIS")}
-            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 border ${
-              activeFilter === "QRIS" 
-                ? "bg-indigo-50 text-indigo-600 border-indigo-100 shadow-sm" 
-                : "text-slate-500 border-transparent hover:bg-slate-50 hover:text-slate-900"
-            }`}
-          >
-            📱 QRIS
-          </button>
-
-          <button 
-            onClick={() => setActiveFilter("CASH")}
-            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 border ${
-              activeFilter === "CASH" 
-                ? "bg-emerald-50 text-emerald-600 border-emerald-100 shadow-sm" 
-                : "text-slate-500 border-transparent hover:bg-slate-50 hover:text-slate-900"
-            }`}
-          >
-            💵 Tunai (Cash)
-          </button>
+      <header className="bg-slate-900 text-white p-6 md:px-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-30 shadow-md">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight">
+            Ruang<span className="text-emerald-500">Kasir.</span>
+          </h1>
+          <p className="text-slate-400 font-medium text-xs mt-1">
+            Kelola pesanan masuk dan verifikasi pembayaran.
+          </p>
         </div>
+        <button onClick={handleLogout} className="bg-slate-800 hover:bg-red-500 text-slate-300 hover:text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 group active:scale-95">
+          Keluar Sistem
+        </button>
+      </header>
 
-        {filteredOrders.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-32 bg-white rounded-[2rem] shadow-sm border border-slate-100">
-            <span className="text-6xl mb-4 opacity-50">🧾</span>
-            <p className="text-slate-400 font-medium">
-              {activeFilter === "ALL" 
-                ? "Belum ada pesanan masuk saat ini." 
-                : `Tidak ada pesanan ${activeFilter} untuk saat ini.`}
-            </p>
+      <main className="p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto w-full flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
+        <div className="flex-1 w-full">
+          <div className="flex flex-wrap items-center gap-2 mb-6 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm w-max">
+            <button onClick={() => setActiveFilter("ALL")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${activeFilter === "ALL" ? "bg-slate-900 text-white shadow-md" : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"}`}>
+              Aktif & Selesai
+            </button>
+            <button onClick={() => setActiveFilter("QRIS")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all border ${activeFilter === "QRIS" ? "bg-indigo-50 text-indigo-600 border-indigo-100 shadow-sm" : "text-slate-500 border-transparent hover:bg-slate-50"}`}>
+              📱 QRIS
+            </button>
+            <button onClick={() => setActiveFilter("CASH")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all border ${activeFilter === "CASH" ? "bg-emerald-50 text-emerald-600 border-emerald-100 shadow-sm" : "text-slate-500 border-transparent hover:bg-slate-50"}`}>
+              💵 Tunai
+            </button>
+            <div className="w-px h-5 bg-slate-200 mx-1"></div>
+            <button onClick={() => setActiveFilter("CANCELLED")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all border ${activeFilter === "CANCELLED" ? "bg-red-50 text-red-600 border-red-100 shadow-sm" : "text-slate-400 border-transparent hover:bg-red-50"}`}>
+              Dibatalkan
+            </button>
           </div>
-        ) : (
-          <div className="columns-1 md:columns-2 lg:columns-3 gap-6 xl:gap-8 space-y-6 xl:space-y-8">
-            
-            {filteredOrders.map((order) => (
-              <div key={order.id} className="break-inside-avoid w-full inline-block bg-white rounded-[1.5rem] p-6 sm:p-8 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-slate-100 transition-all duration-300">
-                
-                <div className="flex justify-between items-start mb-6 border-b border-slate-100 pb-5">
-                  <div>
-                    <span className="inline-block bg-slate-100 text-slate-700 px-3 py-1 rounded-lg text-xs font-extrabold tracking-wider uppercase mb-3">
-                      Meja {order.tableNumber}
-                    </span>
-                    <h3 className="font-extrabold text-slate-900 text-xl leading-tight mb-1">{order.customerName}</h3>
-                    <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Order #{order.id}</p>
-                  </div>
-                  
-                  <div className="text-right flex flex-col items-end">
-                    <span className={`text-[10px] font-extrabold px-3 py-1.5 rounded-lg tracking-widest uppercase shadow-sm mb-3 ${
-                      order.paymentStatus === 'PAID' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 
-                      order.paymentStatus === 'REJECTED' ? 'bg-red-50 text-red-600 border border-red-100' : 
-                      'bg-amber-50 text-amber-600 border border-amber-100'
-                    }`}>
-                      {order.paymentStatus}
-                    </span>
-                    <p className="font-black text-slate-900 text-lg">{formatRupiah(order.totalAmount)}</p>
-                    <div className="flex items-center gap-1 mt-1 text-slate-500">
-                      <span className={`text-xs font-bold ${order.paymentMethod === 'QRIS' ? 'text-indigo-600' : 'text-emerald-600'}`}>
-                        {order.paymentMethod}
-                      </span>
-                      {order.paymentMethod === 'QRIS' ? <span className="text-xs">📱</span> : <span className="text-xs">💵</span>}
+
+          {filteredOrders.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2rem] shadow-sm border border-slate-100">
+              <span className="text-5xl mb-4 opacity-50">🧾</span>
+              <p className="text-slate-400 font-medium">Tidak ada pesanan di kategori ini.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {filteredOrders.map((order) => {
+                const isSelected = selectedOrder?.id === order.id;
+                return (
+                <div key={order.id} onClick={() => setSelectedOrder(order)} className={`w-full bg-white rounded-2xl p-4 shadow-sm hover:shadow-md border-2 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${isSelected ? 'border-slate-900 ring-2 ring-slate-900/10' : 'border-slate-100 hover:border-slate-300'}`}>
+                  <div className="flex items-center gap-4">
+                    <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border shrink-0 transition-colors ${isSelected ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-100 text-slate-900'}`}>
+                      <span className={`text-[10px] font-bold uppercase ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>Meja</span>
+                      <span className="text-xl font-black leading-none">{order.tableNumber}</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-base">{order.customerName}</h3>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md">#{order.id}</span>
+                        <div className="flex items-center gap-1 text-slate-500">
+                          {order.paymentMethod === 'QRIS' ? <span className="text-[10px]">📱</span> : <span className="text-[10px]">💵</span>}
+                          <span className={`text-[10px] font-bold ${order.paymentMethod === 'QRIS' ? 'text-indigo-600' : 'text-emerald-600'}`}>{order.paymentMethod}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                  
+                  <div className="flex flex-col sm:items-end justify-center text-left sm:text-right">
+                    <span className={`text-[9px] font-extrabold px-2 py-1 rounded-md tracking-widest uppercase mb-1 w-max sm:ml-auto ${
+                        order.paymentStatus === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 
+                        order.paymentStatus === 'CANCELLED' ? 'bg-red-100 text-red-700' : 
+                        order.paymentStatus === 'REJECTED' ? 'bg-orange-100 text-orange-700' : 
+                        'bg-amber-100 text-amber-700'
+                      }`}>
+                        {order.paymentStatus}
+                    </span>
+                    <p className="font-black text-slate-900 text-lg">{formatRupiah(order.totalAmount)}</p>
+                  </div>
 
-                {/* PERUBAHAN: Tampilan gambar QRIS diganti menjadi tombol Cek Bukti */}
-                {order.paymentMethod === "QRIS" && getProofUrl(order) && (
-                  <div className="mb-6">
-                    <a 
-                      href={`${API_URL}/${getProofUrl(order)}`} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="flex items-center justify-center gap-2 w-full bg-indigo-50/50 hover:bg-indigo-500 text-indigo-600 hover:text-white border border-indigo-100 py-3 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-sm"
-                    >
+                  <div className="flex items-center gap-2 pt-3 border-t sm:border-0 border-slate-100 w-full sm:w-auto">
+                    {order.paymentStatus === "PENDING" || order.paymentStatus === "WAITING_CONFIRMATION" ? (
+                      <>
+                        <button onClick={(e) => handleVerify(e, order.id)} className="bg-slate-900 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600 transition-all flex-1 sm:flex-none active:scale-95 shadow-sm">
+                          Terima
+                        </button>
+                      </>
+                    ) : order.paymentStatus === "CANCELLED" ? (
+                        <span className="text-[10px] font-bold text-red-400 bg-red-50 px-3 py-2 rounded-xl border border-red-100 flex-1 sm:flex-none text-center">Dibatalkan</span>
+                    ) : (
+                      <button onClick={(e) => handlePrint(e, order)} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 flex-1 sm:flex-none active:scale-95">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                        Struk
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )})}
+            </div>
+          )}
+        </div>
+
+        <aside className="w-full lg:w-[380px] xl:w-[420px] shrink-0 sticky top-[104px]">
+          {!selectedOrder ? (
+            <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm text-center flex flex-col items-center justify-center min-h-[400px]">
+              <div className="w-24 h-24 bg-emerald-50 border-4 border-white shadow-lg text-emerald-500 rounded-full flex items-center justify-center text-4xl mb-5">👨‍💻</div>
+              <span className="bg-slate-100 text-slate-500 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full mb-3">{today}</span>
+              <h3 className="font-extrabold text-slate-900 text-2xl mb-2">Kasir Bertugas</h3>
+              <p className="text-slate-500 text-sm leading-relaxed px-4">Pilih salah satu kartu pesanan di sebelah kiri untuk melihat rincian menu yang dipesan oleh pelanggan.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-[2rem] border border-slate-100 shadow-xl overflow-hidden flex flex-col max-h-[calc(100vh-140px)] animate-[slideUp_0.3s_ease-out]">
+              <div className="bg-slate-900 text-white p-6 relative overflow-hidden shrink-0">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+                <div className="flex justify-between items-start relative z-10">
+                  <div>
+                    <span className="text-slate-400 text-xs font-bold uppercase tracking-wider block mb-1">Order #{selectedOrder.id}</span>
+                    <h2 className="text-2xl font-black">{selectedOrder.customerName}</h2>
+                  </div>
+                  <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-2 text-center">
+                    <span className="block text-[9px] text-slate-300 font-bold uppercase tracking-widest">Meja</span>
+                    <span className="block text-2xl font-black text-emerald-400 leading-none">{selectedOrder.tableNumber}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-200 pb-2">Rincian Pesanan</h4>
+                {selectedOrder.orderItems && selectedOrder.orderItems.length > 0 ? (
+                  <div className="space-y-4">
+                    {selectedOrder.orderItems.map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-slate-100 text-slate-500 rounded-lg flex items-center justify-center font-bold text-sm">{item.quantity}x</div>
+                          <span className="font-bold text-slate-700 text-sm">{item.menu?.name || 'Menu'}</span>
+                        </div>
+                        <span className="font-bold text-slate-900 text-sm">{formatRupiah(item.menu?.price * item.quantity)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-10">
+                    <span className="text-3xl opacity-30 mb-2 block">🍽️</span>
+                    <p className="text-sm text-slate-400 font-medium">Detail item tidak dikirim oleh server database.</p>
+                    <p className="text-[10px] text-slate-300 mt-1">(Pastikan backend melakukan include OrderItem)</p>
+                  </div>
+                )}
+                {selectedOrder.paymentMethod === "QRIS" && getProofUrl(selectedOrder) && (
+                  <div className="mt-6 pt-4 border-t border-slate-200">
+                    <a href={`${API_URL}/${getProofUrl(selectedOrder)}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full bg-indigo-50 hover:bg-indigo-500 text-indigo-600 hover:text-white border border-indigo-100 py-3 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-sm">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                      Lihat Bukti Pembayaran
+                      Lihat Bukti Transfer QRIS
                     </a>
                   </div>
                 )}
-
-                <div className="pt-2 flex gap-3">
-                  {order.paymentStatus === "PENDING" || order.paymentStatus === "WAITING_CONFIRMATION" ? (
-                    <>
-                      <button onClick={() => handleReject(order.id)} className="flex-1 bg-white border-2 border-slate-100 text-slate-600 py-3 rounded-xl text-sm font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-colors active:scale-95">
-                        Tolak
-                      </button>
-                      <button onClick={() => handleVerify(order.id)} className="flex-1 bg-slate-900 text-white py-3 rounded-xl text-sm font-bold hover:bg-emerald-600 transition-all shadow-md hover:shadow-emerald-600/20 active:scale-95">
-                        Terima
-                      </button>
-                    </>
-                  ) : order.paymentStatus === "REJECTED" ? (
-                    <button disabled className="w-full bg-red-50 border border-red-100 text-red-500 py-3 rounded-xl text-sm font-bold cursor-not-allowed">
-                      Orderan Dibatalkan
-                    </button>
-                  ) : (
-                    <div className="w-full flex gap-3">
-                      <button disabled className="flex-1 bg-slate-50 border border-slate-100 text-slate-400 py-3 rounded-xl text-sm font-bold cursor-not-allowed hidden sm:block">
-                        Diproses
-                      </button>
-                      <button 
-                        onClick={() => handlePrint(order)} 
-                        className="flex-1 bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-600 hover:text-white py-3 rounded-xl text-sm font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2"
-                        title="Cetak Struk"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                        Cetak Struk
-                      </button>
-                    </div>
-                  )}
-                </div>
-
               </div>
-            ))}
-          </div>
-        )}
+              <div className="p-6 bg-white border-t border-slate-100 shrink-0">
+                <div className="flex justify-between items-center mb-5">
+                  <span className="font-bold text-slate-500">Total Pembayaran</span>
+                  <span className="font-black text-2xl text-slate-900">{formatRupiah(selectedOrder.totalAmount)}</span>
+                </div>
+                <button onClick={() => setSelectedOrder(null)} className="w-full py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors">
+                  Tutup Rincian
+                </button>
+              </div>
+            </div>
+          )}
+        </aside>
       </main>
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes slideUp {
+          from { transform: translateY(20px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+      `}} />
     </div>
   );
 }

@@ -76,16 +76,33 @@ export default function OrderStatusPage({
     }
   };
 
-  // Fungsi untuk membatalkan pesanan
-  const handleCancelOrder = () => {
+  // --- PERUBAHAN BESAR ADA DI FUNGSI INI ---
+  const handleCancelOrder = async () => {
     const confirmCancel = window.confirm(
       "Apakah Anda yakin ingin membatalkan pesanan ini?"
     );
     
     if (confirmCancel) {
-      // Jika di masa depan kamu punya endpoint DELETE pesanan, bisa ditambahkan di sini.
-      // Untuk saat ini, kita arahkan user kembali ke menu utama.
-      router.replace("/");
+      try {
+        // 1. Eksekusi hapus data dari database backend agar hilang di Kasir
+        // (Pastikan backend Node.js kamu punya rute DELETE /order/:id)
+        await axios.delete(`${API_URL}/order/${orderId}`, {
+          // Menyertakan token berjaga-jaga jika endpoint ini butuh otorisasi
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+        });
+
+        // 2. Siapkan data keranjang (cart) untuk dipulihkan
+        const backupCart = localStorage.getItem("backupCart");
+        if (backupCart) {
+          localStorage.setItem("restoreCart", backupCart); // Kirim sinyal restore
+        }
+
+        alert("Pesanan berhasil dibatalkan.");
+        router.replace("/");
+      } catch (error) {
+        console.error(error);
+        alert("Gagal menghapus pesanan dari sistem. Pastikan backend mengizinkan penghapusan.");
+      }
     }
   };
 
@@ -104,7 +121,6 @@ export default function OrderStatusPage({
           </h1>
         </div>
 
-        {/* --- KOTAK PERINGATAN PEMBATALAN --- */}
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 flex items-start gap-3 shadow-sm">
           <div className="text-amber-500 mt-0.5 shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -119,9 +135,7 @@ export default function OrderStatusPage({
           </div>
         </div>
 
-        {/* LOGIKA PERCABANGAN UI BERDASARKAN METODE PEMBAYARAN */}
         {paymentMethod === "CASH" ? (
-          // --- TAMPILAN JIKA CASH (ELEGAN) ---
           <div className="text-center bg-slate-50 border border-slate-100 rounded-[1.5rem] p-6 mt-8">
             <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-inner">
               💵
@@ -151,7 +165,6 @@ export default function OrderStatusPage({
             </div>
           </div>
         ) : (
-          // --- TAMPILAN JIKA QRIS ---
           <div className="mt-4">
             {!uploadSuccess && (
               <p className="text-slate-500 text-sm text-center mb-6 font-medium">
@@ -181,7 +194,6 @@ export default function OrderStatusPage({
               </div>
             ) : (
               <form onSubmit={handleUploadSubmit} className="space-y-6">
-                {/* --- SEKSI TAMPILAN BARCODE SCAN QRIS TOKO --- */}
                 <div className="bg-slate-50 border border-slate-100 rounded-[1.5rem] p-5 flex flex-col items-center shadow-inner">
                   <div className="flex items-center gap-1.5 mb-3 bg-white px-3 py-1 rounded-full border border-slate-200/60 shadow-sm">
                     <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
@@ -210,7 +222,6 @@ export default function OrderStatusPage({
                   </p>
                 </div>
 
-                {/* --- INPUT UPLOAD BUKTI --- */}
                 <label className="block w-full border-2 border-dashed border-slate-300 rounded-[1.5rem] p-4 text-center cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/50 bg-slate-50 transition-all">
                   {previewUrl ? (
                     <div className="relative rounded-xl overflow-hidden shadow-sm">

@@ -24,7 +24,6 @@ export default function AdminDashboard() {
 
   const [menus, setMenus] = useState<Menu[]>([]);
   
-  // STATE MENU SEKARANG DIGUNAKAN UNTUK TAMBAH & UPDATE
   const [editingMenuId, setEditingMenuId] = useState<number | null>(null);
   const [newMenuName, setNewMenuName] = useState("");
   const [newMenuPrice, setNewMenuPrice] = useState("");
@@ -34,11 +33,9 @@ export default function AdminDashboard() {
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-  // SATPAM PROTEKSI HALAMAN ADMIN (SUPER KETAT)
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
     const storedRole = localStorage.getItem("role");
-
     const isValidToken = storedToken && storedToken !== "undefined" && storedToken !== "null";
 
     if (!isValidToken) {
@@ -55,7 +52,6 @@ export default function AdminDashboard() {
     } 
     
     setToken(storedToken);
-    
   }, [router]);
 
   useEffect(() => {
@@ -66,7 +62,6 @@ export default function AdminDashboard() {
     }
   }, [token]);
 
-  // --- API MEJA ---
   const fetchTables = async () => {
     try {
       const response = await axios.get(`${API_URL}/table`, { headers: { Authorization: `Bearer ${token}` } });
@@ -91,7 +86,6 @@ export default function AdminDashboard() {
     } catch (error) { alert("Gagal menghapus meja."); }
   };
 
-  // --- API KATEGORI ---
   const fetchCategories = async () => {
     try {
       const response = await axios.get(`${API_URL}/category`, { headers: { Authorization: `Bearer ${token}` } });
@@ -116,7 +110,6 @@ export default function AdminDashboard() {
     } catch (error) { alert("Gagal menghapus kategori."); }
   };
 
-  // --- API MENU ---
   const fetchMenus = async () => {
     try {
       const response = await axios.get(`${API_URL}/menu`, { headers: { Authorization: `Bearer ${token}` } });
@@ -124,33 +117,47 @@ export default function AdminDashboard() {
     } catch (error) { console.error(error); }
   };
 
-  // FUNGSI GABUNGAN: TAMBAH & UPDATE
+  // --- PERBAIKAN LOGIKA UPDATE MENU ---
   const handleSubmitMenu = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validasi: Kalau mode tambah, gambar wajib. Kalau update, gambar opsional.
     if (!editingMenuId && !newMenuImage) {
       return alert("Gambar menu wajib diisi untuk menu baru!");
     }
     
     setIsSubmittingMenu(true);
     try {
-      const formData = new FormData();
-      formData.append("name", newMenuName);
-      formData.append("price", newMenuPrice);
-      formData.append("categoryId", newMenuCategoryId);
-      if (newMenuImage) {
-        formData.append("image", newMenuImage); 
-      }
-
       if (editingMenuId) {
-        // MODE UPDATE (PATCH)
-        await axios.patch(`${API_URL}/menu/${editingMenuId}`, formData, { 
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
-        });
+        // MODE UPDATE
+        if (newMenuImage) {
+          const formData = new FormData();
+          formData.append("name", newMenuName);
+          formData.append("price", newMenuPrice);
+          formData.append("categoryId", newMenuCategoryId);
+          formData.append("image", newMenuImage); 
+          
+          await axios.patch(`${API_URL}/menu/${editingMenuId}`, formData, { 
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
+          });
+        } else {
+          const jsonData = {
+            name: newMenuName,
+            price: Number(newMenuPrice),
+            categoryId: Number(newMenuCategoryId)
+          };
+          await axios.patch(`${API_URL}/menu/${editingMenuId}`, jsonData, { 
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } 
+          });
+        }
         alert("Menu berhasil diperbarui!");
       } else {
-        // MODE TAMBAH (POST)
+        // MODE TAMBAH
+        const formData = new FormData();
+        formData.append("name", newMenuName);
+        formData.append("price", newMenuPrice);
+        formData.append("categoryId", newMenuCategoryId);
+        formData.append("image", newMenuImage as File); 
+
         await axios.post(`${API_URL}/menu`, formData, { 
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
         });
@@ -166,22 +173,19 @@ export default function AdminDashboard() {
     }
   };
 
-  // MENGISI FORM DENGAN DATA YANG MAU DIEDIT
   const handleEditClick = (menu: Menu) => {
     setEditingMenuId(menu.id);
     setNewMenuName(menu.name);
     setNewMenuPrice(menu.price.toString());
     setNewMenuCategoryId(menu.categoryId.toString());
-    setNewMenuImage(null); // Reset gambar, biarkan kosong kalau tidak mau diganti
+    setNewMenuImage(null); 
     
     const fileInput = document.getElementById('image-upload') as HTMLInputElement;
     if (fileInput) fileInput.value = '';
 
-    // Otomatis scroll ke atas (ke arah form)
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // MEMBATALKAN MODE EDIT
   const resetMenuForm = () => {
     setEditingMenuId(null);
     setNewMenuName(""); 
@@ -220,8 +224,6 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#F4F5F7] font-sans flex flex-col md:flex-row text-slate-900 selection:bg-emerald-200">
-      
-      {/* SIDEBAR ELEGAN (SLATE-900) */}
       <aside className="w-full md:w-72 bg-slate-900 text-slate-300 p-6 flex flex-col min-h-screen flex-shrink-0 shadow-2xl z-10">
         <div className="mb-10 mt-4 px-2">
           <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1">
@@ -229,63 +231,37 @@ export default function AdminDashboard() {
           </h1>
           <p className="text-xs font-bold tracking-widest text-slate-500 uppercase">Admin Workspace</p>
         </div>
-
         <nav className="flex-1 space-y-3">
-          <div 
-            onClick={() => setActiveTab("TABLE")} 
-            className={`px-5 py-4 rounded-2xl font-bold cursor-pointer transition-all flex items-center gap-3 ${activeTab === "TABLE" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "hover:bg-slate-800 hover:text-white"}`}
-          >
+          <div onClick={() => setActiveTab("TABLE")} className={`px-5 py-4 rounded-2xl font-bold cursor-pointer transition-all flex items-center gap-3 ${activeTab === "TABLE" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "hover:bg-slate-800 hover:text-white"}`}>
             <span className="text-xl">🍽️</span> Kelola Meja
           </div>
-          
-          <div 
-            onClick={() => setActiveTab("CATEGORY")} 
-            className={`px-5 py-4 rounded-2xl font-bold cursor-pointer transition-all flex items-center gap-3 ${activeTab === "CATEGORY" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "hover:bg-slate-800 hover:text-white"}`}
-          >
+          <div onClick={() => setActiveTab("CATEGORY")} className={`px-5 py-4 rounded-2xl font-bold cursor-pointer transition-all flex items-center gap-3 ${activeTab === "CATEGORY" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "hover:bg-slate-800 hover:text-white"}`}>
             <span className="text-xl">📑</span> Kelola Kategori
           </div>
-          
-          <div 
-            onClick={() => setActiveTab("MENU")} 
-            className={`px-5 py-4 rounded-2xl font-bold cursor-pointer transition-all flex items-center gap-3 ${activeTab === "MENU" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "hover:bg-slate-800 hover:text-white"}`}
-          >
+          <div onClick={() => setActiveTab("MENU")} className={`px-5 py-4 rounded-2xl font-bold cursor-pointer transition-all flex items-center gap-3 ${activeTab === "MENU" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "hover:bg-slate-800 hover:text-white"}`}>
             <span className="text-xl">🍔</span> Kelola Menu
           </div>
         </nav>
-
-        <button 
-          onClick={handleLogout} 
-          className="mt-8 bg-slate-800 text-slate-300 hover:bg-red-500 hover:text-white px-5 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 group"
-        >
+        <button onClick={handleLogout} className="mt-8 bg-slate-800 text-slate-300 hover:bg-red-500 hover:text-white px-5 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 group">
           <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
           Keluar
         </button>
       </aside>
-
-      {/* KONTEN UTAMA */}
       <main className="flex-1 p-6 md:p-10 lg:p-12 overflow-y-auto">
-        
-        {/* TAB: KELOLA MEJA */}
         {activeTab === "TABLE" && (
           <div className="animate-[slideUp_0.3s_ease-out]">
             <div className="mb-10">
               <h2 className="text-3xl font-extrabold text-slate-900">Manajemen Meja</h2>
               <p className="text-slate-500 mt-2 font-medium">Atur ketersediaan nomor meja untuk pelanggan Anda.</p>
             </div>
-            
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Form Tambah Meja */}
               <div className="lg:col-span-1">
                 <div className="bg-white p-8 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
                   <h3 className="font-extrabold text-lg mb-6 text-slate-900">Tambah Meja</h3>
                   <form onSubmit={handleAddTable} className="space-y-5">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Nomor Meja</label>
-                      <input 
-                        type="number" required value={newTableNumber} onChange={(e) => setNewTableNumber(e.target.value)} 
-                        className="w-full border-2 border-slate-100 rounded-xl px-4 py-3.5 text-sm font-medium text-slate-900 bg-slate-50 focus:bg-white focus:ring-0 focus:border-slate-900 outline-none transition-colors" 
-                        placeholder="Contoh: 1, 2, 3..."
-                      />
+                      <input type="number" required value={newTableNumber} onChange={(e) => setNewTableNumber(e.target.value)} className="w-full border-2 border-slate-100 rounded-xl px-4 py-3.5 text-sm font-medium text-slate-900 bg-slate-50 focus:bg-white focus:ring-0 focus:border-slate-900 outline-none transition-colors" placeholder="Contoh: 1, 2, 3..." />
                     </div>
                     <button type="submit" disabled={isSubmittingTable} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-sm hover:bg-emerald-600 disabled:bg-slate-300 disabled:text-slate-500 transition-all shadow-md active:scale-95">
                       {isSubmittingTable ? "Menyimpan..." : "Simpan Meja"}
@@ -293,8 +269,6 @@ export default function AdminDashboard() {
                   </form>
                 </div>
               </div>
-
-              {/* Daftar Meja */}
               <div className="lg:col-span-2">
                 <div className="bg-white p-8 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
                   <h3 className="font-extrabold text-lg mb-6 text-slate-900">Daftar Meja Aktif</h3>
@@ -303,8 +277,6 @@ export default function AdminDashboard() {
                       <div key={table.id} className="border-2 border-slate-100 rounded-[1.25rem] p-6 flex flex-col items-center justify-center relative group hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 transition-all bg-white overflow-hidden">
                         <span className="text-4xl font-black text-slate-800 mb-1">{table.tableNumber}</span>
                         <span className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">Meja</span>
-                        
-                        {/* Tombol Hapus Hover */}
                         <div className="absolute inset-0 bg-red-500/90 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => handleDeleteTable(table.id)} className="bg-white text-red-600 font-bold px-4 py-2 rounded-lg text-sm shadow-sm hover:scale-105 transition-transform">
                             Hapus
@@ -318,15 +290,12 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
-
-        {/* TAB: KELOLA KATEGORI */}
         {activeTab === "CATEGORY" && (
           <div className="animate-[slideUp_0.3s_ease-out]">
             <div className="mb-10">
               <h2 className="text-3xl font-extrabold text-slate-900">Manajemen Kategori</h2>
               <p className="text-slate-500 mt-2 font-medium">Kelompokkan menu agar lebih rapi dan mudah dicari.</p>
             </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-1">
                 <div className="bg-white p-8 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
@@ -334,11 +303,7 @@ export default function AdminDashboard() {
                   <form onSubmit={handleAddCategory} className="space-y-5">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Nama Kategori</label>
-                      <input 
-                        type="text" required value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} 
-                        className="w-full border-2 border-slate-100 rounded-xl px-4 py-3.5 text-sm font-medium text-slate-900 bg-slate-50 focus:bg-white focus:ring-0 focus:border-slate-900 outline-none transition-colors" 
-                        placeholder="Misal: Minuman Dingin..."
-                      />
+                      <input type="text" required value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} className="w-full border-2 border-slate-100 rounded-xl px-4 py-3.5 text-sm font-medium text-slate-900 bg-slate-50 focus:bg-white focus:ring-0 focus:border-slate-900 outline-none transition-colors" placeholder="Misal: Minuman Dingin..." />
                     </div>
                     <button type="submit" disabled={isSubmittingCategory} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-sm hover:bg-emerald-600 disabled:bg-slate-300 disabled:text-slate-500 transition-all shadow-md active:scale-95">
                       {isSubmittingCategory ? "Menyimpan..." : "Simpan Kategori"}
@@ -346,7 +311,6 @@ export default function AdminDashboard() {
                   </form>
                 </div>
               </div>
-
               <div className="lg:col-span-2">
                 <div className="bg-white p-8 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
                   <h3 className="font-extrabold text-lg mb-6 text-slate-900">Daftar Kategori</h3>
@@ -357,10 +321,7 @@ export default function AdminDashboard() {
                       {categories.map((cat) => (
                         <div key={cat.id} className="flex justify-between items-center border-2 border-slate-100 p-5 rounded-2xl hover:border-slate-300 transition-colors bg-slate-50/50">
                           <span className="font-bold text-slate-800">{cat.name}</span>
-                          <button 
-                            onClick={() => handleDeleteCategory(cat.id)} 
-                            className="text-red-500 hover:text-white bg-white hover:bg-red-500 border border-red-100 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm"
-                          >
+                          <button onClick={() => handleDeleteCategory(cat.id)} className="text-red-500 hover:text-white bg-white hover:bg-red-500 border border-red-100 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm">
                             Hapus
                           </button>
                         </div>
@@ -372,18 +333,13 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
-
-        {/* TAB: KELOLA MENU */}
         {activeTab === "MENU" && (
           <div className="animate-[slideUp_0.3s_ease-out]">
             <div className="mb-10">
               <h2 className="text-3xl font-extrabold text-slate-900">Manajemen Menu</h2>
               <p className="text-slate-500 mt-2 font-medium">Tambah dan atur hidangan yang akan tampil di aplikasi pelanggan.</p>
             </div>
-
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-              
-              {/* Form Tambah / Update Menu */}
               <div className="xl:col-span-1">
                 <div className={`p-8 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border transition-colors ${editingMenuId ? 'bg-amber-50/30 border-amber-200' : 'bg-white border-slate-100'}`}>
                   <div className="flex items-center justify-between mb-6">
@@ -396,33 +352,19 @@ export default function AdminDashboard() {
                       </span>
                     )}
                   </div>
-
                   <form onSubmit={handleSubmitMenu} className="space-y-5">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Nama Menu</label>
-                      <input 
-                        type="text" required value={newMenuName} onChange={(e) => setNewMenuName(e.target.value)} 
-                        className="w-full border-2 border-slate-100 rounded-xl px-4 py-3.5 text-sm font-medium text-slate-900 bg-slate-50 focus:bg-white focus:ring-0 focus:border-slate-900 outline-none transition-colors" 
-                        placeholder="Nasi Goreng Spesial"
-                      />
+                      <input type="text" required value={newMenuName} onChange={(e) => setNewMenuName(e.target.value)} className="w-full border-2 border-slate-100 rounded-xl px-4 py-3.5 text-sm font-medium text-slate-900 bg-slate-50 focus:bg-white focus:ring-0 focus:border-slate-900 outline-none transition-colors" placeholder="Nasi Goreng Spesial" />
                     </div>
-                    
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Harga (Rp)</label>
-                      <input 
-                        type="number" required value={newMenuPrice} onChange={(e) => setNewMenuPrice(e.target.value)} 
-                        className="w-full border-2 border-slate-100 rounded-xl px-4 py-3.5 text-sm font-medium text-slate-900 bg-slate-50 focus:bg-white focus:ring-0 focus:border-slate-900 outline-none transition-colors" 
-                        placeholder="25000"
-                      />
+                      <input type="number" required value={newMenuPrice} onChange={(e) => setNewMenuPrice(e.target.value)} className="w-full border-2 border-slate-100 rounded-xl px-4 py-3.5 text-sm font-medium text-slate-900 bg-slate-50 focus:bg-white focus:ring-0 focus:border-slate-900 outline-none transition-colors" placeholder="25000" />
                     </div>
-                    
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Kategori</label>
                       <div className="relative">
-                        <select 
-                          required value={newMenuCategoryId} onChange={(e) => setNewMenuCategoryId(e.target.value)} 
-                          className="w-full border-2 border-slate-100 rounded-xl pl-4 pr-10 py-3.5 text-sm font-bold text-slate-900 bg-slate-50 focus:bg-white focus:ring-0 focus:border-slate-900 outline-none transition-colors appearance-none cursor-pointer"
-                        >
+                        <select required value={newMenuCategoryId} onChange={(e) => setNewMenuCategoryId(e.target.value)} className="w-full border-2 border-slate-100 rounded-xl pl-4 pr-10 py-3.5 text-sm font-bold text-slate-900 bg-slate-50 focus:bg-white focus:ring-0 focus:border-slate-900 outline-none transition-colors appearance-none cursor-pointer">
                           <option value="" disabled>Pilih Kategori...</option>
                           {categories.map((cat) => ( <option key={cat.id} value={cat.id}>{cat.name}</option> ))}
                         </select>
@@ -431,18 +373,12 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                     </div>
-                    
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
                         Gambar Menu {editingMenuId && <span className="text-amber-600 lowercase font-medium">(Opsional jika tidak diganti)</span>}
                       </label>
-                      <input 
-                        id="image-upload" type="file" required={!editingMenuId} accept="image/*" 
-                        onChange={(e) => setNewMenuImage(e.target.files ? e.target.files[0] : null)} 
-                        className="w-full text-sm font-medium text-slate-500 file:mr-4 file:py-3 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:uppercase file:tracking-wider file:bg-slate-900 file:text-white hover:file:bg-emerald-600 file:cursor-pointer file:transition-colors bg-slate-50 border-2 border-slate-100 rounded-xl p-1.5 cursor-pointer" 
-                      />
+                      <input id="image-upload" type="file" required={!editingMenuId} accept="image/*" onChange={(e) => setNewMenuImage(e.target.files ? e.target.files[0] : null)} className="w-full text-sm font-medium text-slate-500 file:mr-4 file:py-3 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:uppercase file:tracking-wider file:bg-slate-900 file:text-white hover:file:bg-emerald-600 file:cursor-pointer file:transition-colors bg-slate-50 border-2 border-slate-100 rounded-xl p-1.5 cursor-pointer" />
                     </div>
-                    
                     <div className="pt-2 flex gap-3">
                       {editingMenuId && (
                         <button type="button" onClick={resetMenuForm} className="flex-1 bg-white border-2 border-slate-200 text-slate-600 py-4 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all shadow-sm active:scale-95">
@@ -456,15 +392,12 @@ export default function AdminDashboard() {
                   </form>
                 </div>
               </div>
-
-              {/* Daftar Menu Grid */}
               <div className="xl:col-span-2">
                 <div className="bg-white p-8 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="font-extrabold text-lg text-slate-900">Daftar Menu Terdaftar</h3>
                     <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-lg text-xs font-bold">{menus.length} Item</span>
                   </div>
-
                   {menus.length === 0 ? ( 
                     <div className="flex flex-col items-center justify-center py-20 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
                       <span className="text-4xl mb-3 opacity-50">🍔</span>
@@ -474,34 +407,20 @@ export default function AdminDashboard() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       {menus.map((menu) => (
                         <div key={menu.id} className="border-2 border-slate-100 rounded-2xl overflow-hidden flex flex-col shadow-sm hover:shadow-lg hover:shadow-slate-200/50 transition-all bg-white group">
-                          
-                          {/* Gambar Menu dengan Kategori Float */}
                           <div className="w-full h-36 bg-slate-100 relative overflow-hidden">
                             <img src={`${API_URL}/${menu.image}`} alt={menu.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                             <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[10px] font-bold text-slate-700 uppercase tracking-wider shadow-sm">
                               {menu.category?.name || "Kategori"}
                             </div>
                           </div>
-                          
-                          {/* Info & Tombol Aksi */}
                           <div className="p-5 flex flex-col flex-1">
                             <h4 className="font-bold text-slate-900 text-base leading-snug mb-1">{menu.name}</h4>
                             <p className="font-black text-emerald-600 text-sm mb-5">{formatRupiah(menu.price)}</p>
-                            
                             <div className="mt-auto flex gap-2">
-                              {/* Tombol Edit */}
-                              <button 
-                                onClick={() => handleEditClick(menu)} 
-                                className="flex-1 text-amber-600 hover:text-white bg-amber-50 hover:bg-amber-500 py-2.5 rounded-xl text-sm font-bold transition-colors active:scale-95"
-                              >
+                              <button onClick={() => handleEditClick(menu)} className="flex-1 text-amber-600 hover:text-white bg-amber-50 hover:bg-amber-500 py-2.5 rounded-xl text-sm font-bold transition-colors active:scale-95">
                                 Edit
                               </button>
-
-                              {/* Tombol Hapus */}
-                              <button 
-                                onClick={() => handleDeleteMenu(menu.id)} 
-                                className="flex-1 text-red-500 hover:text-white bg-red-50 hover:bg-red-500 py-2.5 rounded-xl text-sm font-bold transition-colors active:scale-95"
-                              >
+                              <button onClick={() => handleDeleteMenu(menu.id)} className="flex-1 text-red-500 hover:text-white bg-red-50 hover:bg-red-500 py-2.5 rounded-xl text-sm font-bold transition-colors active:scale-95">
                                 Hapus
                               </button>
                             </div>
@@ -512,14 +431,10 @@ export default function AdminDashboard() {
                   )}
                 </div>
               </div>
-
             </div>
           </div>
         )}
-
       </main>
-      
-      {/* Animasi Masuk */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes slideUp {
           from { transform: translateY(20px); opacity: 0; }

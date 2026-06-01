@@ -24,7 +24,6 @@ export default function AdminDashboard() {
 
   const [menus, setMenus] = useState<Menu[]>([]);
   
-  // STATE MENU SEKARANG DIGUNAKAN UNTUK TAMBAH & UPDATE
   const [editingMenuId, setEditingMenuId] = useState<number | null>(null);
   const [newMenuName, setNewMenuName] = useState("");
   const [newMenuPrice, setNewMenuPrice] = useState("");
@@ -34,7 +33,6 @@ export default function AdminDashboard() {
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-  // SATPAM PROTEKSI HALAMAN ADMIN (SUPER KETAT)
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
     const storedRole = localStorage.getItem("role");
@@ -55,7 +53,6 @@ export default function AdminDashboard() {
     } 
     
     setToken(storedToken);
-    
   }, [router]);
 
   useEffect(() => {
@@ -66,7 +63,6 @@ export default function AdminDashboard() {
     }
   }, [token]);
 
-  // --- API MEJA ---
   const fetchTables = async () => {
     try {
       const response = await axios.get(`${API_URL}/table`, { headers: { Authorization: `Bearer ${token}` } });
@@ -91,7 +87,6 @@ export default function AdminDashboard() {
     } catch (error) { alert("Gagal menghapus meja."); }
   };
 
-  // --- API KATEGORI ---
   const fetchCategories = async () => {
     try {
       const response = await axios.get(`${API_URL}/category`, { headers: { Authorization: `Bearer ${token}` } });
@@ -116,7 +111,6 @@ export default function AdminDashboard() {
     } catch (error) { alert("Gagal menghapus kategori."); }
   };
 
-  // --- API MENU ---
   const fetchMenus = async () => {
     try {
       const response = await axios.get(`${API_URL}/menu`, { headers: { Authorization: `Bearer ${token}` } });
@@ -124,33 +118,48 @@ export default function AdminDashboard() {
     } catch (error) { console.error(error); }
   };
 
-  // FUNGSI GABUNGAN: TAMBAH & UPDATE
+  // --- LOGIKA UPDATE/TAMBAH MENU YANG SUDAH DIPERBAIKI ---
   const handleSubmitMenu = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validasi: Kalau mode tambah, gambar wajib. Kalau update, gambar opsional.
     if (!editingMenuId && !newMenuImage) {
       return alert("Gambar menu wajib diisi untuk menu baru!");
     }
     
     setIsSubmittingMenu(true);
     try {
-      const formData = new FormData();
-      formData.append("name", newMenuName);
-      formData.append("price", newMenuPrice);
-      formData.append("categoryId", newMenuCategoryId);
-      if (newMenuImage) {
-        formData.append("image", newMenuImage); 
-      }
-
       if (editingMenuId) {
-        // MODE UPDATE (PATCH)
-        await axios.patch(`${API_URL}/menu/${editingMenuId}`, formData, { 
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
-        });
+        // JALUR 1: UPDATE
+        if (newMenuImage) {
+          const formData = new FormData();
+          formData.append("name", newMenuName);
+          formData.append("price", newMenuPrice);
+          formData.append("categoryId", newMenuCategoryId);
+          formData.append("image", newMenuImage); 
+          
+          await axios.patch(`${API_URL}/menu/${editingMenuId}`, formData, { 
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
+          });
+        } else {
+          // WAJIB MENGIRIM JSON DAN NUMBER AGAR DITERIMA DATABASE JIKA TANPA GAMBAR BARU
+          const jsonData = {
+            name: newMenuName,
+            price: Number(newMenuPrice),
+            categoryId: Number(newMenuCategoryId)
+          };
+          await axios.patch(`${API_URL}/menu/${editingMenuId}`, jsonData, { 
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } 
+          });
+        }
         alert("Menu berhasil diperbarui!");
       } else {
-        // MODE TAMBAH (POST)
+        // JALUR 2: TAMBAH BARU
+        const formData = new FormData();
+        formData.append("name", newMenuName);
+        formData.append("price", newMenuPrice);
+        formData.append("categoryId", newMenuCategoryId);
+        formData.append("image", newMenuImage as File); 
+
         await axios.post(`${API_URL}/menu`, formData, { 
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } 
         });
@@ -160,28 +169,26 @@ export default function AdminDashboard() {
       resetMenuForm();
       fetchMenus(); 
     } catch (error: any) { 
-      alert(editingMenuId ? "Gagal memperbarui menu." : "Gagal menambah menu."); 
+      console.error("Detail Error:", error.response?.data || error.message);
+      alert(editingMenuId ? "Gagal memperbarui menu. Cek kembali form kamu." : "Gagal menambah menu. Pastikan harga berupa angka."); 
     } finally { 
       setIsSubmittingMenu(false); 
     }
   };
 
-  // MENGISI FORM DENGAN DATA YANG MAU DIEDIT
   const handleEditClick = (menu: Menu) => {
     setEditingMenuId(menu.id);
     setNewMenuName(menu.name);
     setNewMenuPrice(menu.price.toString());
     setNewMenuCategoryId(menu.categoryId.toString());
-    setNewMenuImage(null); // Reset gambar, biarkan kosong kalau tidak mau diganti
+    setNewMenuImage(null); 
     
     const fileInput = document.getElementById('image-upload') as HTMLInputElement;
     if (fileInput) fileInput.value = '';
 
-    // Otomatis scroll ke atas (ke arah form)
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // MEMBATALKAN MODE EDIT
   const resetMenuForm = () => {
     setEditingMenuId(null);
     setNewMenuName(""); 
@@ -221,7 +228,6 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-[#F4F5F7] font-sans flex flex-col md:flex-row text-slate-900 selection:bg-emerald-200">
       
-      {/* SIDEBAR ELEGAN (SLATE-900) */}
       <aside className="w-full md:w-72 bg-slate-900 text-slate-300 p-6 flex flex-col min-h-screen flex-shrink-0 shadow-2xl z-10">
         <div className="mb-10 mt-4 px-2">
           <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1">
@@ -262,10 +268,8 @@ export default function AdminDashboard() {
         </button>
       </aside>
 
-      {/* KONTEN UTAMA */}
       <main className="flex-1 p-6 md:p-10 lg:p-12 overflow-y-auto">
         
-        {/* TAB: KELOLA MEJA */}
         {activeTab === "TABLE" && (
           <div className="animate-[slideUp_0.3s_ease-out]">
             <div className="mb-10">
@@ -274,7 +278,6 @@ export default function AdminDashboard() {
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Form Tambah Meja */}
               <div className="lg:col-span-1">
                 <div className="bg-white p-8 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
                   <h3 className="font-extrabold text-lg mb-6 text-slate-900">Tambah Meja</h3>
@@ -294,7 +297,6 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Daftar Meja */}
               <div className="lg:col-span-2">
                 <div className="bg-white p-8 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
                   <h3 className="font-extrabold text-lg mb-6 text-slate-900">Daftar Meja Aktif</h3>
@@ -304,7 +306,6 @@ export default function AdminDashboard() {
                         <span className="text-4xl font-black text-slate-800 mb-1">{table.tableNumber}</span>
                         <span className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">Meja</span>
                         
-                        {/* Tombol Hapus Hover */}
                         <div className="absolute inset-0 bg-red-500/90 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => handleDeleteTable(table.id)} className="bg-white text-red-600 font-bold px-4 py-2 rounded-lg text-sm shadow-sm hover:scale-105 transition-transform">
                             Hapus
@@ -319,7 +320,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* TAB: KELOLA KATEGORI */}
         {activeTab === "CATEGORY" && (
           <div className="animate-[slideUp_0.3s_ease-out]">
             <div className="mb-10">
@@ -373,7 +373,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* TAB: KELOLA MENU */}
         {activeTab === "MENU" && (
           <div className="animate-[slideUp_0.3s_ease-out]">
             <div className="mb-10">
@@ -383,7 +382,6 @@ export default function AdminDashboard() {
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
               
-              {/* Form Tambah / Update Menu */}
               <div className="xl:col-span-1">
                 <div className={`p-8 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border transition-colors ${editingMenuId ? 'bg-amber-50/30 border-amber-200' : 'bg-white border-slate-100'}`}>
                   <div className="flex items-center justify-between mb-6">
@@ -457,7 +455,6 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Daftar Menu Grid */}
               <div className="xl:col-span-2">
                 <div className="bg-white p-8 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
                   <div className="flex justify-between items-center mb-6">
@@ -475,7 +472,6 @@ export default function AdminDashboard() {
                       {menus.map((menu) => (
                         <div key={menu.id} className="border-2 border-slate-100 rounded-2xl overflow-hidden flex flex-col shadow-sm hover:shadow-lg hover:shadow-slate-200/50 transition-all bg-white group">
                           
-                          {/* Gambar Menu dengan Kategori Float */}
                           <div className="w-full h-36 bg-slate-100 relative overflow-hidden">
                             <img src={`${API_URL}/${menu.image}`} alt={menu.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                             <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[10px] font-bold text-slate-700 uppercase tracking-wider shadow-sm">
@@ -483,13 +479,11 @@ export default function AdminDashboard() {
                             </div>
                           </div>
                           
-                          {/* Info & Tombol Aksi */}
                           <div className="p-5 flex flex-col flex-1">
                             <h4 className="font-bold text-slate-900 text-base leading-snug mb-1">{menu.name}</h4>
                             <p className="font-black text-emerald-600 text-sm mb-5">{formatRupiah(menu.price)}</p>
                             
                             <div className="mt-auto flex gap-2">
-                              {/* Tombol Edit */}
                               <button 
                                 onClick={() => handleEditClick(menu)} 
                                 className="flex-1 text-amber-600 hover:text-white bg-amber-50 hover:bg-amber-500 py-2.5 rounded-xl text-sm font-bold transition-colors active:scale-95"
@@ -497,7 +491,6 @@ export default function AdminDashboard() {
                                 Edit
                               </button>
 
-                              {/* Tombol Hapus */}
                               <button 
                                 onClick={() => handleDeleteMenu(menu.id)} 
                                 className="flex-1 text-red-500 hover:text-white bg-red-50 hover:bg-red-500 py-2.5 rounded-xl text-sm font-bold transition-colors active:scale-95"
@@ -519,7 +512,6 @@ export default function AdminDashboard() {
 
       </main>
       
-      {/* Animasi Masuk */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes slideUp {
           from { transform: translateY(20px); opacity: 0; }

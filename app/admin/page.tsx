@@ -236,7 +236,10 @@ export default function AdminDashboard() {
         },
         params: { t: new Date().getTime() },
       });
-      setMenus(response.data.data || response.data);
+      const menuData = response.data.data || response.data;
+      // --- PERBAIKAN: Urutkan menu dari ID terbesar ke terkecil (Terbaru di atas) ---
+      const sortedMenus = menuData.sort((a: Menu, b: Menu) => b.id - a.id);
+      setMenus(sortedMenus);
     } catch (error) {
       console.error(error);
     }
@@ -339,6 +342,7 @@ export default function AdminDashboard() {
     if (fileInput) fileInput.value = "";
   };
 
+  // --- PERBAIKAN: MENGGANTI WINDOW.CONFIRM DENGAN TOAST CUSTOM ---
   const handleDeleteMenu = (id: number) => {
     toast(
       (t) => (

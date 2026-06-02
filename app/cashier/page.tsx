@@ -17,7 +17,10 @@ interface OrderItem {
 interface Order {
   id: number;
   customerName: string;
-  tableNumber: number;
+  // --- PERBAIKAN STRUKTUR MEJA ---
+  table?: {
+    tableNumber: number;
+  };
   totalAmount: number;
   paymentMethod: string;
   paymentStatus: string; 
@@ -185,7 +188,7 @@ export default function CashierDashboard() {
             </div>
             
             <div class="row"><span>Pelanggan:</span><span>${order.customerName}</span></div>
-            <div class="row"><span>Meja:</span><span>${order.tableNumber}</span></div>
+            <div class="row"><span>Meja:</span><span>${order.table?.tableNumber || '-'}</span></div>
             <div class="row"><span>Metode:</span><span>${order.paymentMethod}</span></div>
             
             ${notesHtml}
@@ -218,16 +221,8 @@ export default function CashierDashboard() {
   };
 
   const filteredOrders = orders.filter((order) => {
-    // --- PERBAIKAN LOGIKA FILTER ---
-    // Di backend, pesanan yang ditolak statusnya adalah "REJECTED"
-    
-    // Tab Aktif & Selesai: Sembunyikan yang ditolak
     if (activeFilter === "ALL") return order.paymentStatus !== "REJECTED" && order.paymentStatus !== "CANCELLED";
-    
-    // Tab Dibatalkan: Tampilkan yang ditolak
     if (activeFilter === "CANCELLED") return order.paymentStatus === "REJECTED" || order.paymentStatus === "CANCELLED";
-    
-    // Tab QRIS / Tunai: Tampilkan sesuai metode, tapi sembunyikan yang ditolak
     return order.paymentMethod === activeFilter && order.paymentStatus !== "REJECTED" && order.paymentStatus !== "CANCELLED";
   });
 
@@ -243,7 +238,6 @@ export default function CashierDashboard() {
   return (
     <div className="min-h-screen bg-[#F4F5F7] font-sans text-slate-900 selection:bg-emerald-200">
       
-      {/* --- MODAL KONFIRMASI TOLAK --- */}
       {orderToReject !== null && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm animate-[slideUp_0.2s_ease-out]">
@@ -316,7 +310,6 @@ export default function CashierDashboard() {
                 const isQrisUnpaid = order.paymentMethod === "QRIS" && (order.paymentStatus === "PENDING" || (order.paymentStatus === "WAITING_CONFIRMATION" && !getProofUrl(order)));
                 
                 let displayStatus = order.paymentStatus;
-                // Pastikan teksnya sesuai kalau REJECTED
                 if (order.paymentStatus === 'REJECTED') displayStatus = 'DIBATALKAN';
                 if (isQrisUnpaid) displayStatus = 'MENUNGGU PEMBAYARAN';
 
@@ -325,7 +318,8 @@ export default function CashierDashboard() {
                   <div className="flex items-center gap-4">
                     <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border shrink-0 transition-colors ${isSelected ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-100 text-slate-900'}`}>
                       <span className={`text-[10px] font-bold uppercase ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>Meja</span>
-                      <span className="text-xl font-black leading-none">{order.tableNumber}</span>
+                      {/* --- PERBAIKAN MEJA CARD KIRI --- */}
+                      <span className="text-xl font-black leading-none">{order.table?.tableNumber || '-'}</span>
                     </div>
                     <div>
                       <h3 className="font-bold text-slate-900 text-base">{order.customerName}</h3>
@@ -423,7 +417,8 @@ export default function CashierDashboard() {
                   </div>
                   <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-2 text-center">
                     <span className="block text-[9px] text-slate-300 font-bold uppercase tracking-widest">Meja</span>
-                    <span className="block text-2xl font-black text-emerald-400 leading-none">{selectedOrder.tableNumber}</span>
+                    {/* --- PERBAIKAN MEJA CARD KANAN --- */}
+                    <span className="block text-2xl font-black text-emerald-400 leading-none">{selectedOrder.table?.tableNumber || '-'}</span>
                   </div>
                 </div>
               </div>

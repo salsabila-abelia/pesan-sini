@@ -23,9 +23,18 @@ interface Menu {
   category?: Category;
 }
 
+// --- TAMBAHAN INTERFACE UNTUK REPORT ---
+interface Order {
+  id: number;
+  totalAmount: number;
+  paymentStatus: string;
+  createdAt: string;
+  customerName?: string;
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("TABLE");
+  const [activeTab, setActiveTab] = useState("TABLE"); 
   const [isLoading, setIsLoading] = useState(true);
   const [token, setToken] = useState("");
 
@@ -38,13 +47,21 @@ export default function AdminDashboard() {
   const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
 
   const [menus, setMenus] = useState<Menu[]>([]);
-
   const [editingMenuId, setEditingMenuId] = useState<number | null>(null);
   const [newMenuName, setNewMenuName] = useState("");
   const [newMenuPrice, setNewMenuPrice] = useState("");
   const [newMenuCategoryId, setNewMenuCategoryId] = useState("");
   const [newMenuImage, setNewMenuImage] = useState<File | null>(null);
   const [isSubmittingMenu, setIsSubmittingMenu] = useState(false);
+
+  // --- STATE UNTUK REPORT ---
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
+  const [dailyIncome, setDailyIncome] = useState(0);
+  const [monthlyIncome, setMonthlyIncome] = useState(0);
+  const [yearlyIncome, setYearlyIncome] = useState(0);
+  
+  // --- TAMBAHAN: STATE UNTUK FILTER REPORT ---
+  const [reportFilter, setReportFilter] = useState<"ALL" | "TODAY" | "MONTH" | "YEAR">("ALL");
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -76,6 +93,7 @@ export default function AdminDashboard() {
       fetchTables();
       fetchCategories();
       fetchMenus();
+      fetchOrdersForReport(); // --- FETCH DATA REPORT ---
     }
   }, [token]);
 
@@ -237,7 +255,6 @@ export default function AdminDashboard() {
         params: { t: new Date().getTime() },
       });
       const menuData = response.data.data || response.data;
-      // --- PERBAIKAN: Urutkan menu dari ID terbesar ke terkecil (Terbaru di atas) ---
       const sortedMenus = menuData.sort((a: Menu, b: Menu) => b.id - a.id);
       setMenus(sortedMenus);
     } catch (error) {
@@ -342,7 +359,6 @@ export default function AdminDashboard() {
     if (fileInput) fileInput.value = "";
   };
 
-  // --- PERBAIKAN: MENGGANTI WINDOW.CONFIRM DENGAN TOAST CUSTOM ---
   const handleDeleteMenu = (id: number) => {
     toast(
       (t) => (
@@ -379,6 +395,94 @@ export default function AdminDashboard() {
     );
   };
 
+  // --- FUNGSI REPORT ---
+  const fetchOrdersForReport = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/order`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const ordersData: Order[] = response.data.data || response.data;
+      setAllOrders(ordersData);
+      calculateIncome(ordersData);
+    } catch (error) {
+      console.error("Gagal mengambil data report:", error);
+    }
+  };
+
+  const calculateIncome = (orders: Order[]) => {
+    const now = new Date();
+    let daily = 0;
+    let monthly = 0;
+    let yearly = 0;
+
+    orders.forEach(order => {
+      if (order.paymentStatus === "PAID") {
+        const orderDate = new Date(order.createdAt);
+        
+        if (orderDate.toDateString() === now.toDateString()) {
+          daily += order.totalAmount;
+        }
+        if (orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear()) {
+          monthly += order.totalAmount;
+        }
+        if (orderDate.getFullYear() === now.getFullYear()) {
+          yearly += order.totalAmount;
+        }
+      }
+    });
+
+    setDailyIncome(daily);
+    setMonthlyIncome(monthly);
+    setYearlyIncome(yearly);
+  };
+
+  // --- TAMBAHAN: FUNGSI FILTER UNTUK DATA REPORT ---
+  const getFilteredReportOrders = () => {
+    const now = new Date();
+    let filtered = allOrders.filter(o => o.paymentStatus === "PAID");
+
+    if (reportFilter === "TODAY") {
+      filtered = filtered.filter(o => new Date(o.createdAt).toDateString() === now.toDateString());
+    } else if (reportFilter === "MONTH") {
+      filtered = filtered.filter(o => {
+        const d = new Date(o.createdAt);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      });
+    } else if (reportFilter === "YEAR") {
+      filtered = filtered.filter(o => new Date(o.createdAt).getFullYear() === now.getFullYear());
+    }
+
+    return filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  };
+
+  const handleExportCSV = () => {
+    // Export mengikuti data yang terfilter
+    const paidOrders = getFilteredReportOrders();
+    if (paidOrders.length === 0) return toast.error("Tidak ada data untuk diexport");
+
+    let csvContent = "ID Pesanan;Tanggal;Pelanggan;Total Bayar\n";
+
+    paidOrders.forEach(row => {
+      const date = new Date(row.createdAt).toLocaleDateString("id-ID");
+      const customer = row.customerName || 'Guest';
+      csvContent += `${row.id};${date};${customer};${row.totalAmount}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Laporan_Penghasilan_${new Date().toLocaleDateString('id-ID')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportPDF = () => {
+    window.print();
+  };
+
   const formatRupiah = (angka: number) => {
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
@@ -404,8 +508,8 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F5F7] font-sans flex flex-col md:flex-row text-slate-900 selection:bg-emerald-200">
-      <aside className="w-full md:w-72 bg-slate-900 text-slate-300 p-6 flex flex-col min-h-screen flex-shrink-0 shadow-2xl z-10">
+    <div className="min-h-screen bg-[#F4F5F7] font-sans flex flex-col md:flex-row text-slate-900 selection:bg-emerald-200 print:bg-white">
+      <aside className="w-full md:w-72 bg-slate-900 text-slate-300 p-6 flex flex-col min-h-screen flex-shrink-0 shadow-2xl z-10 print:hidden">
         <div className="mb-10 mt-4 px-2">
           <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1">
             Pesan<span className="text-emerald-500">Sini.</span>
@@ -436,6 +540,13 @@ export default function AdminDashboard() {
           >
             <span className="text-xl">🍔</span> Kelola Menu
           </div>
+
+          <div
+            onClick={() => { setActiveTab("REPORT"); fetchOrdersForReport(); }}
+            className={`px-5 py-4 rounded-2xl font-bold cursor-pointer transition-all flex items-center gap-3 ${activeTab === "REPORT" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "hover:bg-slate-800 hover:text-white"}`}
+          >
+            <span className="text-xl">📈</span> Laporan
+          </div>
         </nav>
 
         <button
@@ -459,7 +570,7 @@ export default function AdminDashboard() {
         </button>
       </aside>
 
-      <main className="flex-1 p-6 md:p-10 lg:p-12 overflow-y-auto">
+      <main className="flex-1 p-6 md:p-10 lg:p-12 overflow-y-auto print:p-0">
         {activeTab === "TABLE" && (
           <div className="animate-[slideUp_0.3s_ease-out]">
             <div className="mb-10">
@@ -828,6 +939,93 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+        {/* --- TAB REPORT --- */}
+        {activeTab === "REPORT" && (
+          <div className="animate-[slideUp_0.3s_ease-out]">
+            <div className="mb-10 print:hidden">
+              <h2 className="text-3xl font-extrabold text-slate-900">Laporan Penghasilan</h2>
+              <p className="text-slate-500 mt-2 font-medium">Pantau performa penjualan harian, bulanan, dan tahunan.</p>
+            </div>
+
+            <div className="hidden print:block text-center mb-8 border-b-2 border-slate-200 pb-4">
+              <h1 className="text-3xl font-black text-slate-900">PesanSini.</h1>
+              <p className="text-slate-500 mt-1">Laporan Penghasilan Kafe - Dicetak: {new Date().toLocaleDateString("id-ID")}</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div 
+                onClick={() => setReportFilter(reportFilter === "TODAY" ? "ALL" : "TODAY")}
+                className={`bg-indigo-50 border border-indigo-100 p-8 rounded-[1.5rem] cursor-pointer transition-all ${reportFilter === "TODAY" ? "ring-4 ring-indigo-400 shadow-lg" : "hover:shadow-md"}`}
+              >
+                <h3 className="text-indigo-800 font-bold text-sm tracking-wider uppercase mb-2">Hari Ini</h3>
+                <p className="text-3xl font-black text-indigo-900">{formatRupiah(dailyIncome)}</p>
+              </div>
+              <div 
+                onClick={() => setReportFilter(reportFilter === "MONTH" ? "ALL" : "MONTH")}
+                className={`bg-emerald-50 border border-emerald-100 p-8 rounded-[1.5rem] cursor-pointer transition-all ${reportFilter === "MONTH" ? "ring-4 ring-emerald-400 shadow-lg" : "hover:shadow-md"}`}
+              >
+                <h3 className="text-emerald-800 font-bold text-sm tracking-wider uppercase mb-2">Bulan Ini</h3>
+                <p className="text-3xl font-black text-emerald-900">{formatRupiah(monthlyIncome)}</p>
+              </div>
+              <div 
+                onClick={() => setReportFilter(reportFilter === "YEAR" ? "ALL" : "YEAR")}
+                className={`bg-slate-900 border border-slate-800 p-8 rounded-[1.5rem] cursor-pointer transition-all ${reportFilter === "YEAR" ? "ring-4 ring-slate-400 shadow-lg" : "hover:shadow-md"}`}
+              >
+                <h3 className="text-slate-400 font-bold text-sm tracking-wider uppercase mb-2">Tahun Ini</h3>
+                <p className="text-3xl font-black text-white">{formatRupiah(yearlyIncome)}</p>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 print:hidden">
+                <h3 className="font-extrabold text-lg text-slate-900">
+                  Riwayat Penjualan (Selesai)
+                  {reportFilter !== "ALL" && (
+                    <span className="text-sm font-medium text-emerald-600 ml-2">
+                      ({reportFilter === "TODAY" ? "Hari Ini" : reportFilter === "MONTH" ? "Bulan Ini" : "Tahun Ini"})
+                    </span>
+                  )}
+                </h3>
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <button onClick={handleExportCSV} className="flex-1 sm:flex-none bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors">📄 Export Excel</button>
+                  <button onClick={handleExportPDF} className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors">🖨️ Cetak PDF</button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-100">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 uppercase tracking-widest text-[10px] font-bold">
+                      <th className="p-4">ID Pesanan</th>
+                      <th className="p-4">Tanggal</th>
+                      <th className="p-4">Pelanggan</th>
+                      <th className="p-4">Metode</th>
+                      <th className="p-4 text-right">Total Bayar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getFilteredReportOrders().length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-slate-400 font-medium">Belum ada pesanan yang selesai untuk rentang waktu ini.</td>
+                      </tr>
+                    ) : (
+                      getFilteredReportOrders().map(order => (
+                        <tr key={order.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                          <td className="p-4 font-bold text-slate-900">#{order.id}</td>
+                          <td className="p-4 text-slate-500 font-medium text-sm">{new Date(order.createdAt).toLocaleDateString("id-ID")}</td>
+                          <td className="p-4 text-slate-700 font-bold text-sm">{order.customerName || 'Guest'}</td>
+                          <td className="p-4"><span className="bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md text-[10px] font-bold uppercase">PAID</span></td>
+                          <td className="p-4 text-right font-black text-slate-900">{formatRupiah(order.totalAmount)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       <style
@@ -836,6 +1034,9 @@ export default function AdminDashboard() {
         @keyframes slideUp {
           from { transform: translateY(20px); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
+        }
+        @media print {
+          body { background: white !important; }
         }
       `,
         }}

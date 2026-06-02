@@ -3,6 +3,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast"; // <-- IMPORT TOAST
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function LoginPage() {
   const [role, setRole] = useState("CASHIER"); 
   
   const [isLoading, setIsLoading] = useState(false);
+  // Saya biarkan ErrorMsg tetap ada agar kotak merah di bawah judul tetap berfungsi (karena bagian dari desainmu)
   const [errorMsg, setErrorMsg] = useState("");
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -35,10 +37,8 @@ export default function LoginPage() {
 
       if (token) {
         
-        // 1. CARI TAHU JABATAN ASLI DARI BACKEND ATAU DARI DALAM TOKEN
         let realRole = response.data.role || response.data.user?.role;
         
-        // Jika backend tidak mengirim role secara langsung, bongkar token JWT-nya!
         if (!realRole) {
           try {
             const base64Url = token.split('.')[1];
@@ -48,23 +48,24 @@ export default function LoginPage() {
             }).join(''));
             const decoded = JSON.parse(jsonPayload);
             
-            realRole = decoded.role; // Ambil role dari dalam token
+            realRole = decoded.role; 
           } catch (err) {
             console.warn("Gagal membongkar token", err);
           }
         }
 
-        // 2. VALIDASI SIKAT HABIS: Cocokkan jabatan asli dengan pilihan Dropdown
         if (realRole && realRole !== role) {
-          // Jika ketahuan tidak cocok, tendang dan batalkan login!
-          setErrorMsg(`Akses ditolak! Akun ini terdaftar sebagai ${realRole}, bukan ${role}.`);
+          const msg = `Akses ditolak! Akun ini terdaftar sebagai ${realRole}, bukan ${role}.`;
+          setErrorMsg(msg);
+          toast.error(msg); // <-- TAMBAHAN TOAST
           setIsLoading(false);
           return; 
         }
 
-        // 3. JIKA LOLOS VALIDASI, BARU SIMPAN KE BROWSER
         localStorage.setItem("token", token);
         localStorage.setItem("role", realRole || role);
+
+        toast.success("Login berhasil!"); // <-- TAMBAHAN TOAST
 
         if ((realRole || role) === "ADMIN") {
           router.push("/admin");
@@ -73,7 +74,9 @@ export default function LoginPage() {
         }
         
       } else {
-        setErrorMsg("Login berhasil, tapi Token tidak ditemukan dari response server.");
+        const msg = "Login berhasil, tapi Token tidak ditemukan dari response server.";
+        setErrorMsg(msg);
+        toast.error(msg); // <-- TAMBAHAN TOAST
       }
 
     } catch (error: any) {
@@ -81,9 +84,13 @@ export default function LoginPage() {
       
       if (error.response && error.response.data) {
         const message = error.response.data.message;
-        setErrorMsg(Array.isArray(message) ? message.join(', ') : message);
+        const msg = Array.isArray(message) ? message.join(', ') : message;
+        setErrorMsg(msg);
+        toast.error(msg); // <-- TAMBAHAN TOAST
       } else {
-        setErrorMsg("Terjadi kesalahan jaringan atau server mati.");
+        const msg = "Terjadi kesalahan jaringan atau server mati.";
+        setErrorMsg(msg);
+        toast.error(msg); // <-- TAMBAHAN TOAST
       }
     } finally {
       setIsLoading(false);

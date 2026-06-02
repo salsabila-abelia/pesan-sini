@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 
-// Menambahkan interface OrderItem untuk membaca detail menu
 interface OrderItem {
   id: number;
   quantity: number;
@@ -24,6 +24,7 @@ interface Order {
   proofImage?: string;   
   paymentProof?: string;
   proof?: string;
+  notes?: string;
   orderItems?: OrderItem[]; 
 }
 
@@ -35,6 +36,9 @@ export default function CashierDashboard() {
   
   const [activeFilter, setActiveFilter] = useState<"ALL" | "QRIS" | "CASH" | "CANCELLED">("ALL");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+  const [orderToReject, setOrderToReject] = useState<number | null>(null);
+  const [isRejecting, setIsRejecting] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -48,14 +52,14 @@ export default function CashierDashboard() {
     const isValidToken = storedToken && storedToken !== "undefined" && storedToken !== "null";
 
     if (!isValidToken) {
-      alert("Akses ditolak! Silakan login terlebih dahulu. 🛑");
+      toast.error("Akses ditolak! Silakan login terlebih dahulu. 🛑");
       localStorage.clear();
       router.replace("/login");
       return;
     } 
     
     if (storedRole !== "CASHIER") {
-      alert("Akses ditolak! Halaman ini khusus Kasir. 🛑");
+      toast.error("Akses ditolak! Halaman ini khusus Kasir. 🛑");
       router.replace(storedRole === "ADMIN" ? "/admin" : "/login");
       return;
     } 
@@ -93,28 +97,33 @@ export default function CashierDashboard() {
 
   const handleVerify = async (e: React.MouseEvent, orderId: number) => {
     e.stopPropagation(); 
+    const toastId = toast.loading("Memverifikasi pembayaran...");
     try {
       await axios.put(`${API_URL}/order/${orderId}/verify`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert("Pembayaran berhasil diverifikasi!");
+      toast.success("Pembayaran berhasil diverifikasi!", { id: toastId });
       fetchOrders(); 
     } catch (error) {
-      alert("Gagal memverifikasi pembayaran.");
+      toast.error("Gagal memverifikasi pembayaran.", { id: toastId });
     }
   };
 
-  const handleReject = async (e: React.MouseEvent, orderId: number) => {
-    e.stopPropagation();
-    if (!window.confirm("Yakin ingin menolak pesanan ini?")) return;
+  const executeReject = async () => {
+    if (!orderToReject) return;
+    setIsRejecting(true);
+    const toastId = toast.loading("Membatalkan pesanan...");
     try {
-      await axios.put(`${API_URL}/order/${orderId}/reject`, {}, {
+      await axios.put(`${API_URL}/order/${orderToReject}/reject`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert("Pesanan berhasil ditolak / dibatalkan.");
+      toast.success("Pesanan berhasil ditolak / dibatalkan.", { id: toastId });
       fetchOrders(); 
+      setOrderToReject(null); 
     } catch (error) {
-      alert("Gagal menolak pesanan.");
+      toast.error("Gagal menolak pesanan.", { id: toastId });
+    } finally {
+      setIsRejecting(false);
     }
   };
 
@@ -128,7 +137,10 @@ export default function CashierDashboard() {
   };
 
   const getProofUrl = (order: any) => {
-    return order.paymentProof || order.proofImage || order.proof || order.payment_proof || order.receipt || null;
+    const path = order.paymentProof || order.proofImage || order.proof || order.payment_proof || order.receipt || null;
+    if (!path) return null;
+    if (path.startsWith("http")) return path;
+    return `${API_URL}/${path}`;
   };
 
   const handlePrint = (e: React.MouseEvent, order: Order) => {
@@ -143,6 +155,12 @@ export default function CashierDashboard() {
             </div>
           `).join('')
         : '<div class="row" style="text-align: center; color: #666;"><i>(Detail menu tidak tersedia)</i></div>';
+
+      const notesHtml = order.notes 
+        ? `<div class="divider"></div>
+           <div style="font-weight: bold; margin-bottom: 4px;">CATATAN:</div>
+           <div style="font-style: italic;">${order.notes}</div>` 
+        : '';
 
       printWindow.document.write(`
         <html>
@@ -170,6 +188,8 @@ export default function CashierDashboard() {
             <div class="row"><span>Meja:</span><span>${order.tableNumber}</span></div>
             <div class="row"><span>Metode:</span><span>${order.paymentMethod}</span></div>
             
+            ${notesHtml}
+
             <div class="divider"></div>
             
             <div style="font-weight: bold; margin-bottom: 8px;">PESANAN:</div>
@@ -198,15 +218,17 @@ export default function CashierDashboard() {
   };
 
   const filteredOrders = orders.filter((order) => {
-    // ---- PERUBAHAN BESAR ----
-    // Sembunyikan pesanan dari Kasir jika Metode QRIS dan statusnya masih PENDING (belum upload bukti)
-    if (order.paymentMethod === "QRIS" && order.paymentStatus === "PENDING") {
-      return false; 
-    }
-
-    if (activeFilter === "ALL") return order.paymentStatus !== "CANCELLED";
-    if (activeFilter === "CANCELLED") return order.paymentStatus === "CANCELLED";
-    return order.paymentMethod === activeFilter && order.paymentStatus !== "CANCELLED";
+    // --- PERBAIKAN LOGIKA FILTER ---
+    // Di backend, pesanan yang ditolak statusnya adalah "REJECTED"
+    
+    // Tab Aktif & Selesai: Sembunyikan yang ditolak
+    if (activeFilter === "ALL") return order.paymentStatus !== "REJECTED" && order.paymentStatus !== "CANCELLED";
+    
+    // Tab Dibatalkan: Tampilkan yang ditolak
+    if (activeFilter === "CANCELLED") return order.paymentStatus === "REJECTED" || order.paymentStatus === "CANCELLED";
+    
+    // Tab QRIS / Tunai: Tampilkan sesuai metode, tapi sembunyikan yang ditolak
+    return order.paymentMethod === activeFilter && order.paymentStatus !== "REJECTED" && order.paymentStatus !== "CANCELLED";
   });
 
   if (isLoading) {
@@ -220,6 +242,35 @@ export default function CashierDashboard() {
 
   return (
     <div className="min-h-screen bg-[#F4F5F7] font-sans text-slate-900 selection:bg-emerald-200">
+      
+      {/* --- MODAL KONFIRMASI TOLAK --- */}
+      {orderToReject !== null && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm animate-[slideUp_0.2s_ease-out]">
+            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">⚠️</div>
+            <h3 className="text-xl font-bold text-center text-slate-900 mb-2">Tolak Pesanan?</h3>
+            <p className="text-slate-500 text-center text-sm font-medium mb-6">
+              Apakah Anda yakin ingin membatalkan pesanan <span className="font-bold text-slate-700">#{orderToReject}</span> ini? Aksi ini tidak dapat dibatalkan.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setOrderToReject(null)}
+                className="flex-1 bg-slate-100 text-slate-600 hover:bg-slate-200 py-3 rounded-xl text-sm font-bold transition-all active:scale-95"
+              >
+                Batal
+              </button>
+              <button
+                onClick={executeReject}
+                disabled={isRejecting}
+                className="flex-1 bg-red-500 text-white hover:bg-red-600 py-3 rounded-xl text-sm font-bold transition-all disabled:bg-slate-300 disabled:text-slate-500 active:scale-95"
+              >
+                {isRejecting ? "Memproses..." : "Ya, Tolak"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="bg-slate-900 text-white p-6 md:px-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-30 shadow-md">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight">
@@ -261,6 +312,14 @@ export default function CashierDashboard() {
             <div className="flex flex-col gap-4">
               {filteredOrders.map((order) => {
                 const isSelected = selectedOrder?.id === order.id;
+                
+                const isQrisUnpaid = order.paymentMethod === "QRIS" && (order.paymentStatus === "PENDING" || (order.paymentStatus === "WAITING_CONFIRMATION" && !getProofUrl(order)));
+                
+                let displayStatus = order.paymentStatus;
+                // Pastikan teksnya sesuai kalau REJECTED
+                if (order.paymentStatus === 'REJECTED') displayStatus = 'DIBATALKAN';
+                if (isQrisUnpaid) displayStatus = 'MENUNGGU PEMBAYARAN';
+
                 return (
                 <div key={order.id} onClick={() => setSelectedOrder(order)} className={`w-full bg-white rounded-2xl p-4 shadow-sm hover:shadow-md border-2 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${isSelected ? 'border-slate-900 ring-2 ring-slate-900/10' : 'border-slate-100 hover:border-slate-300'}`}>
                   <div className="flex items-center gap-4">
@@ -283,49 +342,49 @@ export default function CashierDashboard() {
                   <div className="flex flex-col sm:items-end justify-center text-left sm:text-right">
                     <span className={`text-[9px] font-extrabold px-2 py-1 rounded-md tracking-widest uppercase mb-1 w-max sm:ml-auto ${
                         order.paymentStatus === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 
-                        order.paymentStatus === 'CANCELLED' ? 'bg-red-100 text-red-700' : 
-                        order.paymentStatus === 'REJECTED' ? 'bg-orange-100 text-orange-700' : 
+                        order.paymentStatus === 'CANCELLED' || order.paymentStatus === 'REJECTED' ? 'bg-red-100 text-red-700' : 
                         'bg-amber-100 text-amber-700'
                       }`}>
-                        {order.paymentStatus}
+                        {displayStatus}
                     </span>
                     <p className="font-black text-slate-900 text-lg">{formatRupiah(order.totalAmount)}</p>
                   </div>
 
                   <div className="flex items-center gap-2 pt-3 border-t sm:border-0 border-slate-100 w-full sm:w-auto">
-                    {order.paymentStatus === "PENDING" || order.paymentStatus === "WAITING_CONFIRMATION" ? (
+                    {isQrisUnpaid ? (
+                      <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 flex-1 sm:flex-none text-center animate-pulse">
+                        Menunggu Bukti...
+                      </span>
+                    ) : order.paymentStatus === "PENDING" || order.paymentStatus === "WAITING_CONFIRMATION" ? (
                       <>
-                        {/* --- TOMBOL CEK BUKTI SAAT WAITING_CONFIRMATION --- */}
                         {order.paymentMethod === "QRIS" && getProofUrl(order) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              window.open(getProofUrl(order), "_blank");
+                              window.open(getProofUrl(order) as string, "_blank");
                             }}
                             className="bg-indigo-50 text-indigo-600 border border-indigo-100 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all flex-1 sm:flex-none active:scale-95 shadow-sm"
                           >
                             Cek Bukti
                           </button>
                         )}
-                        {/* ------------------------------------------- */}
                         
-                        <button onClick={(e) => handleReject(e, order.id)} className="bg-red-50 text-red-600 border border-red-100 px-5 py-2 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all flex-1 sm:flex-none active:scale-95 shadow-sm">
+                        <button onClick={(e) => { e.stopPropagation(); setOrderToReject(order.id); }} className="bg-red-50 text-red-600 border border-red-100 px-5 py-2 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all flex-1 sm:flex-none active:scale-95 shadow-sm">
                           Tolak
                         </button>
                         <button onClick={(e) => handleVerify(e, order.id)} className="bg-slate-900 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600 transition-all flex-1 sm:flex-none active:scale-95 shadow-sm">
                           Terima
                         </button>
                       </>
-                    ) : order.paymentStatus === "CANCELLED" ? (
+                    ) : order.paymentStatus === "CANCELLED" || order.paymentStatus === "REJECTED" ? (
                         <span className="text-[10px] font-bold text-red-400 bg-red-50 px-3 py-2 rounded-xl border border-red-100 flex-1 sm:flex-none text-center">Dibatalkan</span>
                     ) : (
                       <>
-                        {/* --- TOMBOL CEK BUKTI SAAT SUDAH DIBAYAR (PAID) DITAMBAHKAN DI SINI --- */}
                         {order.paymentMethod === "QRIS" && getProofUrl(order) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                             window.open(getProofUrl(order), "_blank");
+                              window.open(getProofUrl(order) as string, "_blank");
                             }}
                             className="bg-indigo-50 text-indigo-600 border border-indigo-100 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all flex-1 sm:flex-none active:scale-95 shadow-sm"
                           >
@@ -370,6 +429,14 @@ export default function CashierDashboard() {
               </div>
               <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-200 pb-2">Rincian Pesanan</h4>
+                
+                {selectedOrder.notes && (
+                  <div className="mb-4 p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                    <span className="block text-[10px] font-bold text-amber-800 uppercase tracking-widest mb-1">Catatan Pelanggan:</span>
+                    <p className="text-sm font-medium text-amber-900">{selectedOrder.notes}</p>
+                  </div>
+                )}
+
                 {selectedOrder.orderItems && selectedOrder.orderItems.length > 0 ? (
                   <div className="space-y-4">
                     {selectedOrder.orderItems.map((item, idx) => (
@@ -391,7 +458,7 @@ export default function CashierDashboard() {
                 )}
                 {selectedOrder.paymentMethod === "QRIS" && getProofUrl(selectedOrder) && (
                   <div className="mt-6 pt-4 border-t border-slate-200">
-                    <a href={getProofUrl(selectedOrder)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full bg-indigo-50 hover:bg-indigo-500 text-indigo-600 hover:text-white border border-indigo-100 py-3 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-sm">
+                    <a href={getProofUrl(selectedOrder) as string} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full bg-indigo-50 hover:bg-indigo-500 text-indigo-600 hover:text-white border border-indigo-100 py-3 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-sm">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                       Lihat Bukti Transfer QRIS
                     </a>

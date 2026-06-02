@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 
 interface MenuItem {
   id: number;
@@ -35,6 +36,7 @@ export default function CustomerPage() {
   const [customerName, setCustomerName] = useState("");
   const [tableId, setTableId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("QRIS");
+  const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -97,12 +99,14 @@ export default function CustomerPage() {
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    const toastId = toast.loading("Memproses pesanan...");
 
     try {
       const payload = {
         customerName: customerName,
         tableNumber: Number(tableId),
         paymentMethod: paymentMethod,
+        notes: notes,
         items: cart.map((item) => ({
           menuId: item.id,
           quantity: item.quantity,
@@ -116,6 +120,7 @@ export default function CustomerPage() {
       setIsCheckoutOpen(false);
 
       localStorage.setItem("lastPaymentMethod", paymentMethod);
+      toast.success("Pesanan berhasil dibuat!", { id: toastId });
       router.push(`/order/${orderId}`);
     } catch (error: any) {
       if (error.response && error.response.data) {
@@ -123,9 +128,9 @@ export default function CustomerPage() {
         const detail = Array.isArray(errorMessage)
           ? errorMessage.join(", ")
           : errorMessage;
-        alert(`Gagal Checkout: \n${detail}`);
+        toast.error(`Gagal Checkout: \n${detail}`, { id: toastId });
       } else {
-        alert("Terjadi kesalahan jaringan atau server tidak merespon.");
+        toast.error("Terjadi kesalahan jaringan atau server tidak merespon.", { id: toastId });
       }
     } finally {
       setIsSubmitting(false);
@@ -137,8 +142,6 @@ export default function CustomerPage() {
     ...Array.from(new Set(menus.map((m) => m.category?.name).filter(Boolean))),
   ];
 
-  // --- LOGIKA PENGURUTAN MENU (PENGELOMPOKAN KATEGORI) ---
-  // Tentukan urutan prioritas kategori di sini
   const categoryPriority = ["Makanan", "Minuman", "Snack", "Dessert"];
 
   const filteredMenus = menus
@@ -157,16 +160,13 @@ export default function CustomerPage() {
       let indexA = categoryPriority.indexOf(catA);
       let indexB = categoryPriority.indexOf(catB);
 
-      // Jika ada kategori lain di luar prioritas, taruh di paling bawah (angka 99)
       if (indexA === -1) indexA = 99;
       if (indexB === -1) indexB = 99;
 
-      // Mengurutkan berdasarkan kelompok kategori
       if (indexA !== indexB) {
         return indexA - indexB;
       }
 
-      // Jika kategorinya sama, urutkan sesuai abjad nama menu (A-Z)
       return a.name.localeCompare(b.name);
     });
 
@@ -374,7 +374,7 @@ export default function CustomerPage() {
                   <div className="w-16 h-16 rounded-xl bg-slate-50 overflow-hidden flex-shrink-0 border border-slate-100">
                     {item.image ? (
                       <img
-                        src={`${API_URL}/${item.image}`}
+                        src={item.image}
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -526,6 +526,19 @@ export default function CustomerPage() {
                     </svg>
                   </div>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  Catatan (Opsional)
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                  className="w-full border-2 border-slate-100 rounded-xl px-4 py-3.5 text-sm font-medium text-slate-900 bg-slate-50 focus:bg-white focus:ring-0 focus:border-slate-900 outline-none transition-colors resize-none"
+                  placeholder="Contoh: Jangan pakai bawang, ekstra pedas..."
+                />
               </div>
 
               <div className="pt-4 flex gap-3 border-t border-slate-100 mt-6">

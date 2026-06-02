@@ -3,6 +3,7 @@
 import { useState, use, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
+import toast from "react-hot-toast"; // <-- IMPORT TOAST DITAMBAHKAN
 
 export default function OrderStatusPage({
   params,
@@ -41,60 +42,63 @@ export default function OrderStatusPage({
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile)
-      return alert("Pilih gambar bukti transfer terlebih dahulu!");
+      return toast.error("Pilih gambar bukti transfer terlebih dahulu!"); // <-- GANTI ALERT JADI TOAST
 
     setIsUploading(true);
+    const toastId = toast.loading("Mengunggah bukti..."); // <-- TOAST LOADING
 
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
 
+      // Gunakan URL yang sudah diperbaiki (tanpa /public)
       await axios.post(
-        `${API_URL}/public/order/${orderId}/upload-proof`,
+        `${API_URL}/order/${orderId}/upload-proof`,
         formData,
         {
           headers: { "Content-Type": "multipart/form-data" },
         },
       );
 
+      toast.success("Bukti pembayaran berhasil dikirim!", { id: toastId }); // <-- TOAST SUCCESS
       setUploadSuccess(true);
     } catch (error: any) {
       if (error.response) {
         if (error.response.status === 404) {
-          alert(`Error 404: Endpoint tidak ditemukan.`);
+          toast.error(`Error 404: Endpoint tidak ditemukan.`, { id: toastId }); // <-- GANTI ALERT JADI TOAST
         } else if (error.response.data) {
           const errorMessage = error.response.data.message;
-          alert(
+          toast.error(
             `Gagal Upload: \n${Array.isArray(errorMessage) ? errorMessage.join(", ") : errorMessage}`,
-          );
+            { id: toastId }
+          ); // <-- GANTI ALERT JADI TOAST
         }
       } else {
-        alert("Gagal mengunggah bukti QRIS. Cek koneksi internet atau server.");
+        toast.error("Gagal mengunggah bukti QRIS. Cek koneksi internet atau server.", { id: toastId }); // <-- GANTI ALERT JADI TOAST
       }
     } finally {
       setIsUploading(false);
     }
   };
 
-  // --- PERUBAHAN: Mengganti fungsi Cancel menjadi Back To Cart ---
   const handleBackToCart = async () => {
+    const toastId = toast.loading("Membatalkan pesanan..."); // <-- TOAST LOADING
     try {
-      // 1. Secara diam-diam hapus data dari database agar tidak jadi sampah
-      await axios.delete(`${API_URL}/order/${orderId}`, {
+      // Gunakan URL yang sudah diperbaiki (tambah /cancel)
+      await axios.delete(`${API_URL}/order/${orderId}/cancel`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
       });
 
-      // 2. Siapkan data keranjang (cart) untuk dipulihkan
       const backupCart = localStorage.getItem("backupCart");
       if (backupCart) {
-        localStorage.setItem("restoreCart", backupCart); // Kirim sinyal restore
+        localStorage.setItem("restoreCart", backupCart); 
       }
 
-      // Kembali ke halaman utama / menu tanpa banyak alert
+      toast.success("Pesanan dikembalikan ke keranjang.", { id: toastId }); // <-- TOAST SUCCESS
       router.replace("/");
     } catch (error) {
       console.error(error);
-      // Tetap paksa kembali ke menu meskipun penghapusan API gagal
+      toast.error("Gagal membatalkan pesanan dari sistem.", { id: toastId }); // <-- TOAST ERROR
       router.replace("/");
     }
   };
@@ -149,7 +153,6 @@ export default function OrderStatusPage({
               >
                 Tutup & Kembali ke Menu
               </button>
-              {/* TOMBOL DIUBAH MENJADI KEMBALI KE KERANJANG */}
               <button
                 onClick={handleBackToCart}
                 className="w-full bg-white border-2 border-slate-200 text-slate-600 px-6 py-3.5 rounded-xl font-bold text-sm hover:bg-slate-50 hover:border-slate-300 transition-all duration-300 active:scale-95"
@@ -255,7 +258,6 @@ export default function OrderStatusPage({
                   >
                     {isUploading ? "Mengunggah..." : "Kirim Bukti Pembayaran"}
                   </button>
-                  {/* TOMBOL DIUBAH MENJADI KEMBALI KE KERANJANG */}
                   <button
                     type="button"
                     onClick={handleBackToCart}

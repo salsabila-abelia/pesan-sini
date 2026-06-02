@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast"; // <-- IMPORT TOAST
 
 interface Table {
   id: number;
@@ -55,14 +56,14 @@ export default function AdminDashboard() {
       storedToken && storedToken !== "undefined" && storedToken !== "null";
 
     if (!isValidToken) {
-      alert("Akses ditolak! Silakan login terlebih dahulu. 🛑");
+      toast.error("Akses ditolak! Silakan login terlebih dahulu. 🛑");
       localStorage.clear();
       router.replace("/login");
       return;
     }
 
     if (storedRole !== "ADMIN") {
-      alert("Akses ditolak! Halaman ini khusus Admin. 🛑");
+      toast.error("Akses ditolak! Halaman ini khusus Admin. 🛑");
       router.replace(storedRole === "CASHIER" ? "/cashier" : "/login");
       return;
     }
@@ -78,7 +79,6 @@ export default function AdminDashboard() {
     }
   }, [token]);
 
-  // --- DITAMBAHKAN CACHE BUSTER AGAR MEJA SELALU UPDATE ---
   const fetchTables = async () => {
     try {
       const response = await axios.get(`${API_URL}/table`, {
@@ -108,9 +108,10 @@ export default function AdminDashboard() {
         { headers: { Authorization: `Bearer ${token}` } },
       );
       setNewTableNumber("");
+      toast.success("Meja berhasil ditambahkan!");
       fetchTables();
     } catch (error) {
-      alert("Gagal menambah meja.");
+      toast.error("Gagal menambah meja.");
     } finally {
       setIsSubmittingTable(false);
     }
@@ -122,13 +123,13 @@ export default function AdminDashboard() {
       await axios.delete(`${API_URL}/table/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      toast.success("Meja berhasil dihapus!");
       fetchTables();
     } catch (error) {
-      alert("Gagal menghapus meja.");
+      toast.error("Gagal menghapus meja.");
     }
   };
 
-  // --- DITAMBAHKAN CACHE BUSTER AGAR KATEGORI SELALU UPDATE ---
   const fetchCategories = async () => {
     try {
       const response = await axios.get(`${API_URL}/category`, {
@@ -156,9 +157,10 @@ export default function AdminDashboard() {
         { headers: { Authorization: `Bearer ${token}` } },
       );
       setNewCategoryName("");
+      toast.success("Kategori berhasil ditambahkan!");
       fetchCategories();
     } catch (error) {
-      alert("Gagal menambah kategori.");
+      toast.error("Gagal menambah kategori.");
     } finally {
       setIsSubmittingCategory(false);
     }
@@ -170,13 +172,13 @@ export default function AdminDashboard() {
       await axios.delete(`${API_URL}/category/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      toast.success("Kategori berhasil dihapus!");
       fetchCategories();
     } catch (error) {
-      alert("Gagal menghapus kategori.");
+      toast.error("Gagal menghapus kategori.");
     }
   };
 
-  // --- DITAMBAHKAN CACHE BUSTER AGAR MENU SELALU UPDATE BILA DIGANTI ---
   const fetchMenus = async () => {
     try {
       const response = await axios.get(`${API_URL}/menu`, {
@@ -198,13 +200,14 @@ export default function AdminDashboard() {
     e.preventDefault();
 
     if (!editingMenuId && !newMenuImage) {
-      return alert("Gambar menu wajib diisi untuk menu baru!");
+      return toast.error("Gambar menu wajib diisi untuk menu baru!");
     }
 
     setIsSubmittingMenu(true);
+    const toastId = toast.loading("Memproses menu...");
+
     try {
       if (editingMenuId) {
-        // JALUR 1: UPDATE
         if (newMenuImage) {
           const formData = new FormData();
           formData.append("name", newMenuName);
@@ -219,7 +222,6 @@ export default function AdminDashboard() {
             },
           });
         } else {
-          // WAJIB MENGIRIM JSON DAN NUMBER AGAR DITERIMA DATABASE JIKA TANPA GAMBAR BARU
           const jsonData = {
             name: newMenuName,
             price: Number(newMenuPrice),
@@ -232,9 +234,8 @@ export default function AdminDashboard() {
             },
           });
         }
-        alert("Menu berhasil diperbarui!");
+        toast.success("Menu berhasil diperbarui!", { id: toastId });
       } else {
-        // JALUR 2: TAMBAH BARU
         const formData = new FormData();
         formData.append("name", newMenuName);
         formData.append("price", newMenuPrice);
@@ -247,17 +248,18 @@ export default function AdminDashboard() {
             "Content-Type": "multipart/form-data",
           },
         });
-        alert("Menu berhasil ditambahkan!");
+        toast.success("Menu berhasil ditambahkan!", { id: toastId });
       }
 
       resetMenuForm();
       fetchMenus();
     } catch (error: any) {
       console.error("Detail Error:", error.response?.data || error.message);
-      alert(
+      toast.error(
         editingMenuId
           ? "Gagal memperbarui menu. Cek kembali form kamu."
           : "Gagal menambah menu. Pastikan harga berupa angka.",
+        { id: toastId }
       );
     } finally {
       setIsSubmittingMenu(false);
@@ -297,9 +299,10 @@ export default function AdminDashboard() {
       await axios.delete(`${API_URL}/menu/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      toast.success("Menu berhasil dihapus!");
       fetchMenus();
     } catch (error) {
-      alert("Gagal menghapus menu.");
+      toast.error("Gagal menghapus menu.");
     }
   };
 

@@ -76,33 +76,26 @@ export default function OrderStatusPage({
     }
   };
 
-  // --- PERUBAHAN BESAR ADA DI FUNGSI INI ---
-  const handleCancelOrder = async () => {
-    const confirmCancel = window.confirm(
-      "Apakah Anda yakin ingin membatalkan pesanan ini?"
-    );
-    
-    if (confirmCancel) {
-      try {
-        // 1. Eksekusi hapus data dari database backend agar hilang di Kasir
-        // (Pastikan backend Node.js kamu punya rute DELETE /order/:id)
-        await axios.delete(`${API_URL}/order/${orderId}`, {
-          // Menyertakan token berjaga-jaga jika endpoint ini butuh otorisasi
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-        });
+  // --- PERUBAHAN: Mengganti fungsi Cancel menjadi Back To Cart ---
+  const handleBackToCart = async () => {
+    try {
+      // 1. Secara diam-diam hapus data dari database agar tidak jadi sampah
+      await axios.delete(`${API_URL}/order/${orderId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+      });
 
-        // 2. Siapkan data keranjang (cart) untuk dipulihkan
-        const backupCart = localStorage.getItem("backupCart");
-        if (backupCart) {
-          localStorage.setItem("restoreCart", backupCart); // Kirim sinyal restore
-        }
-
-        alert("Pesanan berhasil dibatalkan.");
-        router.replace("/");
-      } catch (error) {
-        console.error(error);
-        alert("Gagal menghapus pesanan dari sistem. Pastikan backend mengizinkan penghapusan.");
+      // 2. Siapkan data keranjang (cart) untuk dipulihkan
+      const backupCart = localStorage.getItem("backupCart");
+      if (backupCart) {
+        localStorage.setItem("restoreCart", backupCart); // Kirim sinyal restore
       }
+
+      // Kembali ke halaman utama / menu tanpa banyak alert
+      router.replace("/");
+    } catch (error) {
+      console.error(error);
+      // Tetap paksa kembali ke menu meskipun penghapusan API gagal
+      router.replace("/");
     }
   };
 
@@ -156,11 +149,12 @@ export default function OrderStatusPage({
               >
                 Tutup & Kembali ke Menu
               </button>
+              {/* TOMBOL DIUBAH MENJADI KEMBALI KE KERANJANG */}
               <button
-                onClick={handleCancelOrder}
-                className="w-full bg-white border-2 border-red-100 text-red-500 px-6 py-3.5 rounded-xl font-bold text-sm hover:bg-red-50 hover:border-red-200 transition-all duration-300 active:scale-95"
+                onClick={handleBackToCart}
+                className="w-full bg-white border-2 border-slate-200 text-slate-600 px-6 py-3.5 rounded-xl font-bold text-sm hover:bg-slate-50 hover:border-slate-300 transition-all duration-300 active:scale-95"
               >
-                Batalkan Pesanan
+                Kembali ke Keranjang
               </button>
             </div>
           </div>
@@ -261,12 +255,13 @@ export default function OrderStatusPage({
                   >
                     {isUploading ? "Mengunggah..." : "Kirim Bukti Pembayaran"}
                   </button>
+                  {/* TOMBOL DIUBAH MENJADI KEMBALI KE KERANJANG */}
                   <button
                     type="button"
-                    onClick={handleCancelOrder}
-                    className="w-full bg-white border-2 border-red-100 text-red-500 py-3.5 rounded-xl font-bold text-sm hover:bg-red-50 hover:border-red-200 transition-all duration-300 active:scale-95"
+                    onClick={handleBackToCart}
+                    className="w-full bg-white border-2 border-slate-200 text-slate-600 py-3.5 rounded-xl font-bold text-sm hover:bg-slate-50 hover:border-slate-300 transition-all duration-300 active:scale-95"
                   >
-                    Batalkan Pesanan & Kembali
+                    Kembali ke Keranjang
                   </button>
                 </div>
               </form>

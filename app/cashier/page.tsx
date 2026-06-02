@@ -104,7 +104,6 @@ export default function CashierDashboard() {
     }
   };
 
-  // FUNGSI TOLAK PESANAN (TOMBOLNYA SUDAH DIKEMBALIKAN DI BAWAH)
   const handleReject = async (e: React.MouseEvent, orderId: number) => {
     e.stopPropagation();
     if (!window.confirm("Yakin ingin menolak pesanan ini?")) return;
@@ -199,6 +198,12 @@ export default function CashierDashboard() {
   };
 
   const filteredOrders = orders.filter((order) => {
+    // ---- PERUBAHAN BESAR ----
+    // Sembunyikan pesanan dari Kasir jika Metode QRIS dan statusnya masih PENDING (belum upload bukti)
+    if (order.paymentMethod === "QRIS" && order.paymentStatus === "PENDING") {
+      return false; 
+    }
+
     if (activeFilter === "ALL") return order.paymentStatus !== "CANCELLED";
     if (activeFilter === "CANCELLED") return order.paymentStatus === "CANCELLED";
     return order.paymentMethod === activeFilter && order.paymentStatus !== "CANCELLED";
@@ -290,7 +295,20 @@ export default function CashierDashboard() {
                   <div className="flex items-center gap-2 pt-3 border-t sm:border-0 border-slate-100 w-full sm:w-auto">
                     {order.paymentStatus === "PENDING" || order.paymentStatus === "WAITING_CONFIRMATION" ? (
                       <>
-                        {/* TOMBOL TOLAK DIKEMBALIKAN DI SINI */}
+                        {/* --- TOMBOL CEK BUKTI SAAT WAITING_CONFIRMATION --- */}
+                        {order.paymentMethod === "QRIS" && getProofUrl(order) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`${API_URL}/${getProofUrl(order)}`, "_blank");
+                            }}
+                            className="bg-indigo-50 text-indigo-600 border border-indigo-100 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all flex-1 sm:flex-none active:scale-95 shadow-sm"
+                          >
+                            Cek Bukti
+                          </button>
+                        )}
+                        {/* ------------------------------------------- */}
+                        
                         <button onClick={(e) => handleReject(e, order.id)} className="bg-red-50 text-red-600 border border-red-100 px-5 py-2 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all flex-1 sm:flex-none active:scale-95 shadow-sm">
                           Tolak
                         </button>
@@ -301,10 +319,24 @@ export default function CashierDashboard() {
                     ) : order.paymentStatus === "CANCELLED" ? (
                         <span className="text-[10px] font-bold text-red-400 bg-red-50 px-3 py-2 rounded-xl border border-red-100 flex-1 sm:flex-none text-center">Dibatalkan</span>
                     ) : (
-                      <button onClick={(e) => handlePrint(e, order)} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 flex-1 sm:flex-none active:scale-95">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                        Struk
-                      </button>
+                      <>
+                        {/* --- TOMBOL CEK BUKTI SAAT SUDAH DIBAYAR (PAID) DITAMBAHKAN DI SINI --- */}
+                        {order.paymentMethod === "QRIS" && getProofUrl(order) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`${API_URL}/${getProofUrl(order)}`, "_blank");
+                            }}
+                            className="bg-indigo-50 text-indigo-600 border border-indigo-100 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all flex-1 sm:flex-none active:scale-95 shadow-sm"
+                          >
+                            Cek Bukti
+                          </button>
+                        )}
+                        <button onClick={(e) => handlePrint(e, order)} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 flex-1 sm:flex-none active:scale-95">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                          Struk
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>

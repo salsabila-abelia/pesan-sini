@@ -150,6 +150,10 @@ export default function CashierDashboard() {
     e.stopPropagation();
     const printWindow = window.open('', '_blank', 'width=400,height=600');
     if (printWindow) {
+      // --- PERBAIKAN: Hitung PPN 11% dan Subtotal ---
+      const taxAmount = Math.round(order.totalAmount * (11 / 111));
+      const subTotal = order.totalAmount - taxAmount;
+
       const itemsHtml = order.orderItems && order.orderItems.length > 0 
         ? order.orderItems.map(item => `
             <div class="row">
@@ -175,7 +179,8 @@ export default function CashierDashboard() {
               .header h2 { margin: 0; font-size: 20px; }
               .divider { border-bottom: 2px dashed black; margin: 15px 0; }
               .row { display: flex; justify-content: space-between; margin: 8px 0; }
-              .total { font-weight: bold; font-size: 16px; margin-top: 15px; }
+              .total { font-weight: bold; font-size: 16px; margin-top: 5px; }
+              .tax-info { font-size: 12px; color: #555; }
               .footer { text-align: center; margin-top: 30px; font-size: 12px; }
             </style>
           </head>
@@ -200,8 +205,17 @@ export default function CashierDashboard() {
             
             <div class="divider"></div>
             
+            <div class="row tax-info">
+              <span>Subtotal:</span>
+              <span>${formatRupiah(subTotal)}</span>
+            </div>
+            <div class="row tax-info">
+              <span>PPN (11%):</span>
+              <span>${formatRupiah(taxAmount)}</span>
+            </div>
+            
             <div class="row total">
-              <span>TOTAL:</span>
+              <span>TOTAL BAYAR:</span>
               <span>${formatRupiah(order.totalAmount)}</span>
             </div>
             
@@ -318,7 +332,6 @@ export default function CashierDashboard() {
                   <div className="flex items-center gap-4">
                     <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border shrink-0 transition-colors ${isSelected ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-100 text-slate-900'}`}>
                       <span className={`text-[10px] font-bold uppercase ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>Meja</span>
-                      {/* --- PERBAIKAN MEJA CARD KIRI --- */}
                       <span className="text-xl font-black leading-none">{order.table?.tableNumber || '-'}</span>
                     </div>
                     <div>
@@ -417,7 +430,6 @@ export default function CashierDashboard() {
                   </div>
                   <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-2 text-center">
                     <span className="block text-[9px] text-slate-300 font-bold uppercase tracking-widest">Meja</span>
-                    {/* --- PERBAIKAN MEJA CARD KANAN --- */}
                     <span className="block text-2xl font-black text-emerald-400 leading-none">{selectedOrder.table?.tableNumber || '-'}</span>
                   </div>
                 </div>

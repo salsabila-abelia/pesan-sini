@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import toast from "react-hot-toast"; // <-- IMPORT TOAST
+import toast from "react-hot-toast";
 
 interface Table {
   id: number;
@@ -34,7 +34,7 @@ interface Order {
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("TABLE"); 
+  const [activeTab, setActiveTab] = useState("TABLE");
   const [isLoading, setIsLoading] = useState(true);
   const [token, setToken] = useState("");
 
@@ -47,6 +47,7 @@ export default function AdminDashboard() {
   const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
 
   const [menus, setMenus] = useState<Menu[]>([]);
+
   const [editingMenuId, setEditingMenuId] = useState<number | null>(null);
   const [newMenuName, setNewMenuName] = useState("");
   const [newMenuPrice, setNewMenuPrice] = useState("");
@@ -54,13 +55,11 @@ export default function AdminDashboard() {
   const [newMenuImage, setNewMenuImage] = useState<File | null>(null);
   const [isSubmittingMenu, setIsSubmittingMenu] = useState(false);
 
-  // --- STATE UNTUK REPORT ---
+  // --- STATE UNTUK REPORT & FILTER ---
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [dailyIncome, setDailyIncome] = useState(0);
   const [monthlyIncome, setMonthlyIncome] = useState(0);
   const [yearlyIncome, setYearlyIncome] = useState(0);
-  
-  // --- TAMBAHAN: STATE UNTUK FILTER REPORT ---
   const [reportFilter, setReportFilter] = useState<"ALL" | "TODAY" | "MONTH" | "YEAR">("ALL");
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -93,7 +92,7 @@ export default function AdminDashboard() {
       fetchTables();
       fetchCategories();
       fetchMenus();
-      fetchOrdersForReport(); // --- FETCH DATA REPORT ---
+      fetchOrdersForReport(); // Panggil Data Report
     }
   }, [token]);
 
@@ -395,7 +394,7 @@ export default function AdminDashboard() {
     );
   };
 
-  // --- FUNGSI REPORT ---
+  // --- FUNGSI REPORT & CHART ---
   const fetchOrdersForReport = async () => {
     try {
       const response = await axios.get(`${API_URL}/order`, {
@@ -436,7 +435,38 @@ export default function AdminDashboard() {
     setYearlyIncome(yearly);
   };
 
-  // --- TAMBAHAN: FUNGSI FILTER UNTUK DATA REPORT ---
+  // Fungsi Logika Chart Batang (7 Hari Terakhir)
+  const getChartData = () => {
+    const paidOrders = allOrders.filter(o => o.paymentStatus === "PAID");
+    const days = [];
+    const now = new Date();
+    
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(now.getDate() - i);
+      days.push({
+        dateString: d.toDateString(),
+        label: d.toLocaleDateString("id-ID", { weekday: "short" }),
+        amount: 0
+      });
+    }
+    
+    paidOrders.forEach(order => {
+      const orderDateStr = new Date(order.createdAt).toDateString();
+      const dayMatch = days.find(d => d.dateString === orderDateStr);
+      if (dayMatch) {
+        dayMatch.amount += order.totalAmount;
+      }
+    });
+    
+    const maxAmount = Math.max(...days.map(d => d.amount), 1); // Hindari dibagi 0
+    
+    return days.map(d => ({
+      ...d,
+      percentage: (d.amount / maxAmount) * 100
+    }));
+  };
+
   const getFilteredReportOrders = () => {
     const now = new Date();
     let filtered = allOrders.filter(o => o.paymentStatus === "PAID");
@@ -456,7 +486,6 @@ export default function AdminDashboard() {
   };
 
   const handleExportCSV = () => {
-    // Export mengikuti data yang terfilter
     const paidOrders = getFilteredReportOrders();
     if (paidOrders.length === 0) return toast.error("Tidak ada data untuk diexport");
 
@@ -948,6 +977,7 @@ export default function AdminDashboard() {
               <p className="text-slate-500 mt-2 font-medium">Pantau performa penjualan harian, bulanan, dan tahunan.</p>
             </div>
 
+            {/* Print Header */}
             <div className="hidden print:block text-center mb-8 border-b-2 border-slate-200 pb-4">
               <h1 className="text-3xl font-black text-slate-900">PesanSini.</h1>
               <p className="text-slate-500 mt-1">Laporan Penghasilan Kafe - Dicetak: {new Date().toLocaleDateString("id-ID")}</p>
@@ -974,6 +1004,30 @@ export default function AdminDashboard() {
               >
                 <h3 className="text-slate-400 font-bold text-sm tracking-wider uppercase mb-2">Tahun Ini</h3>
                 <p className="text-3xl font-black text-white">{formatRupiah(yearlyIncome)}</p>
+              </div>
+            </div>
+
+            {/* --- KOTAK GRAFIK --- */}
+            <div className="bg-white p-8 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 mb-8 print:hidden">
+              <h3 className="font-extrabold text-lg text-slate-900 mb-6">Grafik Tren Penjualan (7 Hari Terakhir)</h3>
+              <div className="flex items-end justify-between h-56 pt-4 px-2 border-b border-slate-100">
+                {getChartData().map((day, idx) => (
+                  <div key={idx} className="flex flex-col items-center justify-end flex-1 group h-full">
+                    {/* Tooltip Angka ketika di-hover mouse */}
+                    <div className="text-center text-[10px] font-black text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity mb-2 whitespace-nowrap shadow-sm">
+                      {formatRupiah(day.amount)}
+                    </div>
+                    {/* Wrapper Batang agar persentase tinggi berfungsi */}
+                    <div className="w-full flex-1 flex items-end justify-center relative">
+                      <div 
+                        style={{ height: `${day.percentage}%` }} 
+                        className="w-7 sm:w-10 bg-emerald-500 rounded-t-lg transition-all duration-500 group-hover:bg-slate-900 min-h-[4px]"
+                      ></div>
+                    </div>
+                    {/* Nama Hari */}
+                    <span className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-wide">{day.label}</span>
+                  </div>
+                ))}
               </div>
             </div>
 

@@ -117,39 +117,40 @@ export default function AdminDashboard() {
     }
   };
 
-  // --- MENGUBAH FUNGSI DELETE MEJA MENGGUNAKAN TOAST CUSTOM ---
-  const handleDeleteTable = async (id: number) => {
-    toast((t) => (
-      <div className="flex flex-col gap-3 min-w-[200px]">
-        <span className="font-medium text-sm text-white">Yakin ingin menghapus meja ini?</span>
-        <div className="flex gap-2 mt-1">
-          <button
-            onClick={() => toast.dismiss(t.id)}
-            className="flex-1 bg-slate-700 text-slate-200 hover:bg-slate-600 px-3 py-2 rounded-lg text-xs font-bold transition-colors"
-          >
-            Batal
-          </button>
-          <button
-            onClick={async () => {
-              toast.dismiss(t.id);
-              const toastId = toast.loading("Menghapus meja...");
-              try {
-                await axios.delete(`${API_URL}/table/${id}`, {
-                  headers: { Authorization: `Bearer ${token}` },
-                });
-                toast.success("Meja berhasil dihapus!", { id: toastId });
-                fetchTables();
-              } catch (error) {
-                toast.error("Gagal menghapus meja.", { id: toastId });
-              }
-            }}
-            className="flex-1 bg-red-500 text-white hover:bg-red-600 px-3 py-2 rounded-lg text-xs font-bold transition-colors"
-          >
-            Ya, Hapus
-          </button>
+  const handleDeleteTable = (id: number) => {
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="font-bold text-slate-800 m-0">Yakin ingin menghapus meja ini?</p>
+          <div className="flex gap-2 justify-end">
+            <button
+              className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200 transition-colors"
+              onClick={() => toast.dismiss(t.id)}
+            >
+              Batal
+            </button>
+            <button
+              className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm font-bold hover:bg-red-600 transition-colors"
+              onClick={async () => {
+                toast.dismiss(t.id);
+                try {
+                  await axios.delete(`${API_URL}/table/${id}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                  });
+                  toast.success("Meja berhasil dihapus!");
+                  fetchTables();
+                } catch (error) {
+                  toast.error("Gagal menghapus meja.");
+                }
+              }}
+            >
+              Hapus
+            </button>
+          </div>
         </div>
-      </div>
-    ), { duration: Infinity });
+      ),
+      { duration: Infinity, id: `delete-table-${id}` }
+    );
   };
 
   const fetchCategories = async () => {
@@ -188,39 +189,40 @@ export default function AdminDashboard() {
     }
   };
 
-  // --- MENGUBAH FUNGSI DELETE KATEGORI MENGGUNAKAN TOAST CUSTOM ---
-  const handleDeleteCategory = async (id: number) => {
-    toast((t) => (
-      <div className="flex flex-col gap-3 min-w-[200px]">
-        <span className="font-medium text-sm text-white">Yakin ingin menghapus kategori ini?</span>
-        <div className="flex gap-2 mt-1">
-          <button
-            onClick={() => toast.dismiss(t.id)}
-            className="flex-1 bg-slate-700 text-slate-200 hover:bg-slate-600 px-3 py-2 rounded-lg text-xs font-bold transition-colors"
-          >
-            Batal
-          </button>
-          <button
-            onClick={async () => {
-              toast.dismiss(t.id);
-              const toastId = toast.loading("Menghapus kategori...");
-              try {
-                await axios.delete(`${API_URL}/category/${id}`, {
-                  headers: { Authorization: `Bearer ${token}` },
-                });
-                toast.success("Kategori berhasil dihapus!", { id: toastId });
-                fetchCategories();
-              } catch (error) {
-                toast.error("Gagal menghapus kategori.", { id: toastId });
-              }
-            }}
-            className="flex-1 bg-red-500 text-white hover:bg-red-600 px-3 py-2 rounded-lg text-xs font-bold transition-colors"
-          >
-            Ya, Hapus
-          </button>
+  const handleDeleteCategory = (id: number) => {
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="font-bold text-slate-800 m-0">Yakin ingin menghapus kategori ini?</p>
+          <div className="flex gap-2 justify-end">
+            <button
+              className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200 transition-colors"
+              onClick={() => toast.dismiss(t.id)}
+            >
+              Batal
+            </button>
+            <button
+              className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm font-bold hover:bg-red-600 transition-colors"
+              onClick={async () => {
+                toast.dismiss(t.id);
+                try {
+                  await axios.delete(`${API_URL}/category/${id}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                  });
+                  toast.success("Kategori berhasil dihapus!");
+                  fetchCategories();
+                } catch (error) {
+                  toast.error("Gagal menghapus kategori.");
+                }
+              }}
+            >
+              Hapus
+            </button>
+          </div>
         </div>
-      </div>
-    ), { duration: Infinity });
+      ),
+      { duration: Infinity, id: `delete-category-${id}` }
+    );
   };
 
   const fetchMenus = async () => {
@@ -337,39 +339,40 @@ export default function AdminDashboard() {
     if (fileInput) fileInput.value = "";
   };
 
-  // --- MENGUBAH FUNGSI DELETE MENU MENGGUNAKAN TOAST CUSTOM ---
-  const handleDeleteMenu = async (id: number) => {
-    toast((t) => (
-      <div className="flex flex-col gap-3 min-w-[200px]">
-        <span className="font-medium text-sm text-white">Yakin ingin menghapus menu ini?</span>
-        <div className="flex gap-2 mt-1">
-          <button
-            onClick={() => toast.dismiss(t.id)}
-            className="flex-1 bg-slate-700 text-slate-200 hover:bg-slate-600 px-3 py-2 rounded-lg text-xs font-bold transition-colors"
-          >
-            Batal
-          </button>
-          <button
-            onClick={async () => {
-              toast.dismiss(t.id);
-              const toastId = toast.loading("Menghapus menu...");
-              try {
-                await axios.delete(`${API_URL}/menu/${id}`, {
-                  headers: { Authorization: `Bearer ${token}` },
-                });
-                toast.success("Menu berhasil dihapus!", { id: toastId });
-                fetchMenus();
-              } catch (error) {
-                toast.error("Gagal menghapus menu.", { id: toastId });
-              }
-            }}
-            className="flex-1 bg-red-500 text-white hover:bg-red-600 px-3 py-2 rounded-lg text-xs font-bold transition-colors"
-          >
-            Ya, Hapus
-          </button>
+  const handleDeleteMenu = (id: number) => {
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-3">
+          <p className="font-bold text-slate-800 m-0">Yakin ingin menghapus menu ini?</p>
+          <div className="flex gap-2 justify-end">
+            <button
+              className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200 transition-colors"
+              onClick={() => toast.dismiss(t.id)}
+            >
+              Batal
+            </button>
+            <button
+              className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm font-bold hover:bg-red-600 transition-colors"
+              onClick={async () => {
+                toast.dismiss(t.id);
+                try {
+                  await axios.delete(`${API_URL}/menu/${id}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                  });
+                  toast.success("Menu berhasil dihapus!");
+                  fetchMenus();
+                } catch (error) {
+                  toast.error("Gagal menghapus menu.");
+                }
+              }}
+            >
+              Hapus
+            </button>
+          </div>
         </div>
-      </div>
-    ), { duration: Infinity });
+      ),
+      { duration: Infinity, id: `delete-menu-${id}` }
+    );
   };
 
   const formatRupiah = (angka: number) => {

@@ -438,7 +438,8 @@ export default function AdminDashboard() {
   // Fungsi Logika Chart Batang (7 Hari Terakhir)
   const getChartData = () => {
     const paidOrders = allOrders.filter(o => o.paymentStatus === "PAID");
-    const days = [];
+    // --- PERBAIKAN TYPESCRIPT: MENAMBAHKAN TIPE DATA PADA ARRAY DAYS ---
+    const days: { dateString: string; label: string; amount: number }[] = [];
     const now = new Date();
     
     for (let i = 6; i >= 0; i--) {

@@ -17,7 +17,6 @@ interface OrderItem {
 interface Order {
   id: number;
   customerName: string;
-  // --- PERBAIKAN STRUKTUR MEJA ---
   table?: {
     tableNumber: number;
   };
@@ -150,7 +149,6 @@ export default function CashierDashboard() {
     e.stopPropagation();
     const printWindow = window.open('', '_blank', 'width=400,height=600');
     if (printWindow) {
-      // --- PERBAIKAN: Hitung PPN 11% dan Subtotal ---
       const taxAmount = Math.round(order.totalAmount * (11 / 111));
       const subTotal = order.totalAmount - taxAmount;
 
@@ -317,7 +315,8 @@ export default function CashierDashboard() {
               <p className="text-slate-400 font-medium">Tidak ada pesanan di kategori ini.</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-4">
+            // --- PERUBAHAN: MENJADIKAN GRID KOTAK-KOTAK ---
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
               {filteredOrders.map((order) => {
                 const isSelected = selectedOrder?.id === order.id;
                 
@@ -328,16 +327,18 @@ export default function CashierDashboard() {
                 if (isQrisUnpaid) displayStatus = 'MENUNGGU PEMBAYARAN';
 
                 return (
-                <div key={order.id} onClick={() => setSelectedOrder(order)} className={`w-full bg-white rounded-2xl p-4 shadow-sm hover:shadow-md border-2 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${isSelected ? 'border-slate-900 ring-2 ring-slate-900/10' : 'border-slate-100 hover:border-slate-300'}`}>
-                  <div className="flex items-center gap-4">
+                <div key={order.id} onClick={() => setSelectedOrder(order)} className={`w-full bg-white rounded-3xl p-5 shadow-sm hover:shadow-md border-2 transition-all cursor-pointer flex flex-col h-full ${isSelected ? 'border-slate-900 ring-2 ring-slate-900/10' : 'border-slate-100 hover:border-slate-300'}`}>
+                  
+                  {/* --- AREA ATAS: INFO MEJA & PELANGGAN --- */}
+                  <div className="flex items-start gap-4 mb-4">
                     <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border shrink-0 transition-colors ${isSelected ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-100 text-slate-900'}`}>
                       <span className={`text-[10px] font-bold uppercase ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>Meja</span>
                       <span className="text-xl font-black leading-none">{order.table?.tableNumber || '-'}</span>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-slate-900 text-base">{order.customerName}</h3>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md">#{order.id}</span>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-slate-900 text-base truncate pr-2">{order.customerName}</h3>
+                      <div className="flex items-center flex-wrap gap-2 mt-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">#{order.id}</span>
                         <div className="flex items-center gap-1 text-slate-500">
                           {order.paymentMethod === 'QRIS' ? <span className="text-[10px]">📱</span> : <span className="text-[10px]">💵</span>}
                           <span className={`text-[10px] font-bold ${order.paymentMethod === 'QRIS' ? 'text-indigo-600' : 'text-emerald-600'}`}>{order.paymentMethod}</span>
@@ -346,63 +347,66 @@ export default function CashierDashboard() {
                     </div>
                   </div>
                   
-                  <div className="flex flex-col sm:items-end justify-center text-left sm:text-right">
-                    <span className={`text-[9px] font-extrabold px-2 py-1 rounded-md tracking-widest uppercase mb-1 w-max sm:ml-auto ${
+                  {/* --- AREA TENGAH: STATUS & TOTAL (MENGISI RUANG KOSONG) --- */}
+                  <div className="flex flex-col items-start bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-5 flex-1 justify-center">
+                    <span className={`text-[9px] font-extrabold px-2.5 py-1.5 rounded-md tracking-widest uppercase mb-2 ${
                         order.paymentStatus === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 
                         order.paymentStatus === 'CANCELLED' || order.paymentStatus === 'REJECTED' ? 'bg-red-100 text-red-700' : 
                         'bg-amber-100 text-amber-700'
                       }`}>
                         {displayStatus}
                     </span>
-                    <p className="font-black text-slate-900 text-lg">{formatRupiah(order.totalAmount)}</p>
+                    <p className="font-black text-slate-900 text-2xl">{formatRupiah(order.totalAmount)}</p>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-3 border-t sm:border-0 border-slate-100 w-full sm:w-auto">
+                  {/* --- AREA BAWAH: TOMBOL AKSI --- */}
+                  <div className="mt-auto pt-4 border-t border-slate-100 w-full flex flex-col gap-2">
                     {isQrisUnpaid ? (
-                      <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 flex-1 sm:flex-none text-center animate-pulse">
+                      <span className="text-xs font-bold text-slate-500 bg-slate-50 px-4 py-3 rounded-xl border border-slate-200 w-full text-center animate-pulse">
                         Menunggu Bukti...
                       </span>
                     ) : order.paymentStatus === "PENDING" || order.paymentStatus === "WAITING_CONFIRMATION" ? (
-                      <>
+                      <div className="flex flex-col gap-2 w-full">
                         {order.paymentMethod === "QRIS" && getProofUrl(order) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               window.open(getProofUrl(order) as string, "_blank");
                             }}
-                            className="bg-indigo-50 text-indigo-600 border border-indigo-100 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all flex-1 sm:flex-none active:scale-95 shadow-sm"
+                            className="w-full bg-indigo-50 text-indigo-600 border border-indigo-100 px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all active:scale-95 shadow-sm"
                           >
-                            Cek Bukti
+                            Cek Bukti Transfer
                           </button>
                         )}
-                        
-                        <button onClick={(e) => { e.stopPropagation(); setOrderToReject(order.id); }} className="bg-red-50 text-red-600 border border-red-100 px-5 py-2 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all flex-1 sm:flex-none active:scale-95 shadow-sm">
-                          Tolak
-                        </button>
-                        <button onClick={(e) => handleVerify(e, order.id)} className="bg-slate-900 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600 transition-all flex-1 sm:flex-none active:scale-95 shadow-sm">
-                          Terima
-                        </button>
-                      </>
+                        <div className="flex gap-2 w-full">
+                          <button onClick={(e) => { e.stopPropagation(); setOrderToReject(order.id); }} className="flex-1 bg-red-50 text-red-600 border border-red-100 px-3 py-2.5 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all active:scale-95 shadow-sm">
+                            Tolak
+                          </button>
+                          <button onClick={(e) => handleVerify(e, order.id)} className="flex-1 bg-slate-900 text-white px-3 py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-600 transition-all active:scale-95 shadow-sm">
+                            Terima
+                          </button>
+                        </div>
+                      </div>
                     ) : order.paymentStatus === "CANCELLED" || order.paymentStatus === "REJECTED" ? (
-                        <span className="text-[10px] font-bold text-red-400 bg-red-50 px-3 py-2 rounded-xl border border-red-100 flex-1 sm:flex-none text-center">Dibatalkan</span>
+                        <span className="text-xs font-bold text-red-400 bg-red-50 px-3 py-3 rounded-xl border border-red-100 w-full text-center block">Dibatalkan</span>
                     ) : (
-                      <>
+                      <div className="flex gap-2 w-full">
                         {order.paymentMethod === "QRIS" && getProofUrl(order) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               window.open(getProofUrl(order) as string, "_blank");
                             }}
-                            className="bg-indigo-50 text-indigo-600 border border-indigo-100 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all flex-1 sm:flex-none active:scale-95 shadow-sm"
+                            className="flex-1 bg-indigo-50 text-indigo-600 border border-indigo-100 px-3 py-2.5 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all active:scale-95 shadow-sm"
                           >
                             Cek Bukti
                           </button>
                         )}
-                        <button onClick={(e) => handlePrint(e, order)} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 flex-1 sm:flex-none active:scale-95">
+                        <button onClick={(e) => handlePrint(e, order)} className="flex-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 active:scale-95">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                           Struk
                         </button>
-                      </>
+                      </div>
                     )}
                   </div>
                 </div>
